@@ -490,25 +490,72 @@ def _get_iface_speed(name: str) -> Optional[int]:
 def _load_firewall_zones() -> dict:
     """
     从 /etc/ubunturouter/config.yaml 读取接口的防火墙 Zone 映射
-
-    返回: { "eth0": "lan", "eth1": "wan", ... }
+    
+    匹配策略（优先级从高到低）：
+    1. 按 device 名精确匹配（如 eth0 → wan）
+    2. 按接口逻辑名匹配（如 wan1 → wan）
+    3. 有默认路由的物理接口 → wan
+    4. 其余物理接口 → lan
+    
+    返回: { "ens3": "wan", "docker0": "virtual", ... }
     """
+    zone_map = {}
+
+    # 策略1+2: 从 config.yaml 读取
     config_path = Path("/etc/ubunturouter/config.yaml")
-    if not config_path.exists():
-        return {}
+    if config_path.exists():
+        try:
+            import yaml
+            data = yaml.safe_load(config_path.read_text())
+            if data and "interfaces" in data:
+                for iface in data["interfaces"]:
+                    device = iface.get("device", "")
+                    name = iface.get("name", "")
+                    zone = iface.get("firewall_zone", iface.get("role", "unknown"))
+                    if device:
+                        zone_map[device] = zone
+                    if name:
+                        zone_map[name] = zone
+        except Exception:
+            pass
 
+    # 策略3: 按默认路由推断（兜底）
     try:
-        import yaml
-        data = yaml.safe_load(config_path.read_text())
-        if not data or "interfaces" not in data:
-            return {}
-
-        zone_map = {}
-        for iface in data["interfaces"]:
-            device = iface.get("device", "")
-            zone = iface.get("firewall_zone", iface.get("role", "unknown"))
-            if device:
-                zone_map[device] = zone
-        return zone_map
+        r = subprocess.run(
+            ["ip", "route", "show", "default"],
+            capture_output=True, text=True, timeout=5
+        )
+        for line in r.stdout.strip().split("\n"):
+            parts = line.split()
+            if "dev" in parts:
+                idx = parts.index("dev")
+                if idx + 1 < len(parts):
+                    dev = parts[idx + 1]
+                    if dev not in zone_map:
+                        zone_map[dev] = "wan"
     except Exception:
-        return {}
+        pass
+
+    # 策略4: 其余物理接口默认 LAN，docker 等标 virtual
+    try:
+        r = subprocess.run(["ip", "-j", "link", "show"], capture_output=True, text=True, timeout=5)
+        links = json.loads(r.stdout)
+        for link in links:
+            name = link.get("ifname", "")
+            if name == "lo" or name in zone_map:
+                continue
+            is_phys = Path(f"/sys/class/net/{name}/device").exists()
+            if is_phys:
+                zone_map[name] = "lan"
+            elif name.startswith("docker") or name.startswith("br-"):
+                zone_map[name] = "docker"
+            elif name.startswith("veth"):
+                zone_map[name] = "container"
+            elif name.startswith("ppp"):
+                zone_map[name] = "wan"
+            else:
+                zone_map[name] = "virtual"
+    except Exception:
+        pass
+
+    return zone_map
