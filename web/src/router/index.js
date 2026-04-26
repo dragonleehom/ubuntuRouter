@@ -77,6 +77,16 @@ const routes = [
         component: () => import('@/views/storage/StorageManager.vue'),
       },
       {
+        path: 'monitor',
+        name: 'Monitor',
+        component: () => import('@/views/monitor/SystemMonitor.vue'),
+      },
+      {
+        path: 'samba',
+        name: 'Samba',
+        component: () => import('@/views/samba/SambaManager.vue'),
+      },
+      {
         path: 'orchestrator',
         name: 'Orchestrator',
         component: () => import('@/views/orchestrator/OrchestratorCanvas.vue'),

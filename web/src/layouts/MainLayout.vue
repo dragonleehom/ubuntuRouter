@@ -67,6 +67,14 @@
           <el-icon><Monitor /></el-icon>
           <span>存储管理</span>
         </el-menu-item>
+        <el-menu-item index="/monitor">
+          <el-icon><DataBoard /></el-icon>
+          <span>系统监控</span>
+        </el-menu-item>
+        <el-menu-item index="/samba">
+          <el-icon><Connection /></el-icon>
+          <span>Samba 共享</span>
+        </el-menu-item>
         <el-menu-item index="/orchestrator">
           <el-icon><SetUp /></el-icon>
           <span>流量编排</span>

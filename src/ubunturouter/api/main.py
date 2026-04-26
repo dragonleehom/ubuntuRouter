@@ -10,6 +10,8 @@ from .routes import firewall, dhcp, routing, vpn, topology
 from .routes import containers, appstore, multiwan, orchestrator, vm as vm_routes
 from .routes import ddns as ddns_routes
 from .routes import storage as storage_routes
+from .routes import monitor as monitor_routes
+from .routes import samba as samba_routes
 from .ws import dashboard as ws_dashboard
 from .auth import jwt as jwt_auth
 from .tls import init_https
@@ -50,6 +52,8 @@ def create_app() -> FastAPI:
     app.include_router(vm_routes.router, prefix="/api/v1/vm", tags=["VM"])
     app.include_router(ddns_routes.router, prefix="/api/v1/ddns", tags=["DDNS"])
     app.include_router(storage_routes.router, prefix="/api/v1/storage", tags=["Storage"])
+    app.include_router(monitor_routes.router, prefix="/api/v1/monitor", tags=["Monitor"])
+    app.include_router(samba_routes.router, prefix="/api/v1/samba", tags=["Samba"])
 
     # WebSocket
     app.add_api_websocket_route("/api/v1/ws/dashboard", ws_dashboard.websocket_endpoint)
