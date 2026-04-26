@@ -285,28 +285,28 @@ def scan_apps(repo_path: Path) -> Dict[str, AppManifest]:
     is_onepanel = _detect_onepanel_repo(repo_path)
 
     if is_onepanel:
-        # 1Panel 格式: apps/{category}/{app_name}/{version}/data.yml
-        for category_dir in sorted(repo_path.iterdir()):
-            if not category_dir.is_dir() or category_dir.name.startswith("."):
+        # 1Panel 格式: apps/{app_name}/{version}/data.yml 或 apps/{app_name}/data.yml
+        apps_dir = repo_path / "apps" if repo_path.name != "apps" else repo_path
+        for app_dir in sorted(apps_dir.iterdir()):
+            if not app_dir.is_dir() or app_dir.name.startswith("."):
                 continue
-            for app_dir in sorted(category_dir.iterdir()):
-                if not app_dir.is_dir() or app_dir.name.startswith("."):
-                    continue
-                # 取最新版本
-                versions = sorted([
-                    d for d in app_dir.iterdir()
-                    if d.is_dir() and not d.name.startswith(".")
-                ], reverse=True)
-                if not versions:
-                    continue
+            # 取最新版本: 有 version 子目录则取最后一个，否则取 data.yml
+            versions = sorted([
+                d for d in app_dir.iterdir()
+                if d.is_dir() and not d.name.startswith(".")
+            ], reverse=True)
+            if versions:
                 latest = versions[0]
                 manifest_file = latest / "data.yml"
-                if manifest_file.exists():
-                    manifest = parse_onepanel_manifest(manifest_file)
-                    if manifest:
-                        manifest.repo = repo_path.name
-                        manifest.path = str(latest)
-                        apps[manifest.id] = manifest
+            else:
+                # 无版本子目录，直接在 app 目录下
+                manifest_file = app_dir / "data.yml"
+            if manifest_file.exists():
+                manifest = parse_onepanel_manifest(manifest_file)
+                if manifest:
+                    manifest.repo = repo_path.name
+                    manifest.path = str(manifest_file.parent)
+                    apps[manifest.id] = manifest
     else:
         # 自建格式: {app_name}/app.yaml
         for item in sorted(repo_path.iterdir()):
@@ -328,16 +328,19 @@ def _detect_onepanel_repo(repo_path: Path) -> bool:
     """检测是否为 1Panel 格式仓库"""
     if not repo_path.exists():
         return False
-    # 1Panel 仓库有 apps/ 子目录，且里面有分类目录
-    if repo_path.name == "apps":
-        # apps/{category}/{app}/{version}/data.yml
-        for cat in repo_path.iterdir():
-            if cat.is_dir() and not cat.name.startswith("."):
-                for app in cat.iterdir():
-                    if app.is_dir():
-                        for ver in app.iterdir():
-                            if ver.is_dir() and (ver / "data.yml").exists():
-                                return True
+    # 1Panel 仓库结构: apps/{app_name}/{version}/data.yml 或 apps/{app_name}/data.yml
+    apps_dir = repo_path / "apps" if repo_path.name != "apps" else repo_path
+    if not apps_dir.exists() or not apps_dir.is_dir():
+        return False
+    for app in apps_dir.iterdir():
+        if app.is_dir() and not app.name.startswith("."):
+            # 检查 {app}/{version}/data.yml 或 {app}/data.yml
+            for item in app.iterdir():
+                if item.is_dir():
+                    if (item / "data.yml").exists():
+                        return True
+                elif item.name == "data.yml":
+                    return True
     return False
 
 
