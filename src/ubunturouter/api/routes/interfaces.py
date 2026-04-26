@@ -20,7 +20,7 @@ router = APIRouter()
 
 @router.get("/list")
 async def list_interfaces(auth=Depends(require_auth)):
-    """列出所有网络接口（含IP/速率/类型）"""
+    """列出所有网络接口（含IP/速率/类型/角色）"""
     ifaces = []
     try:
         r = subprocess.run(["ip", "-j", "link", "show"], capture_output=True, text=True, timeout=5)
@@ -34,11 +34,15 @@ async def list_interfaces(auth=Depends(require_auth)):
             addrs_list = [a.get("local", "") for a in entry.get("addr_info", []) if a.get("family") == "inet"]
             addr_map[name] = addrs_list
 
+        # 确定各接口角色
+        role_map = _detect_iface_roles(list(addr_map.keys()))
+
         for link in links:
             name = link.get("ifname", "")
             if name == "lo":
                 continue
             speed = _get_iface_speed(name)
+            role = role_map.get(name, "lan")
             ifaces.append({
                 "name": name,
                 "mac": link.get("address", ""),
@@ -47,6 +51,7 @@ async def list_interfaces(auth=Depends(require_auth)):
                 "ipv4": addr_map.get(name, []),
                 "speed": speed,
                 "type": "physical" if Path(f"/sys/class/net/{name}/device").exists() else "virtual",
+                "role": role,
             })
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -480,3 +485,81 @@ def _get_iface_speed(name: str) -> Optional[int]:
         except Exception:
             return None
     return None
+
+
+def _detect_iface_roles(ifnames: list) -> dict:
+    """
+    检测各接口的角色（wan/lan）
+    
+    判断逻辑：
+    1. 有默认路由经过的 → WAN
+    2. 运行 dhclient 的 → WAN
+    3. 有 PPPoE 连接的 → WAN
+    4. 其余物理接口 → LAN
+    5. docker/bridge 等虚拟接口 → 按已有名标记
+    """
+    roles = {}
+
+    # 获取默认路由表，看哪些接口承载了默认路由
+    try:
+        r = subprocess.run(
+            ["ip", "route", "show", "default"],
+            capture_output=True, text=True, timeout=5
+        )
+        default_routes = r.stdout.strip().split("\n")
+        for line in default_routes:
+            parts = line.split()
+            if "dev" in parts:
+                idx = parts.index("dev")
+                if idx + 1 < len(parts):
+                    dev = parts[idx + 1]
+                    roles[dev] = "wan"
+    except Exception:
+        pass
+
+    # 检查有无 DHCP 客户端进程（dhclient）
+    try:
+        r = subprocess.run(
+            ["pgrep", "-a", "dhclient"],
+            capture_output=True, text=True, timeout=5
+        )
+        for line in r.stdout.strip().split("\n"):
+            if line:
+                # dhclient 命令行中会包含接口名
+                for name in ifnames:
+                    if name in line and name not in roles:
+                        roles[name] = "wan"
+    except Exception:
+        pass
+
+    # 检查 PPPoE 接口（ppp*）
+    try:
+        r = subprocess.run(
+            ["ip", "-j", "link", "show", "type", "ppp"],
+            capture_output=True, text=True, timeout=5
+        )
+        if r.stdout.strip():
+            ppp_links = json.loads(r.stdout)
+            for link in ppp_links:
+                name = link.get("ifname", "")
+                if name:
+                    roles[name] = "wan"
+    except Exception:
+        pass
+
+    # 其余物理接口且有 IP 的标记为 LAN（除非已被标为 WAN）
+    for name in ifnames:
+        if name not in roles:
+            is_phys = Path(f"/sys/class/net/{name}/device").exists()
+            if is_phys:
+                roles[name] = "lan"
+            elif name.startswith("docker") or name.startswith("br-"):
+                roles[name] = "docker"
+            elif name.startswith("veth"):
+                roles[name] = "container"
+            elif name.startswith("ppp"):
+                roles[name] = "wan"
+            else:
+                roles[name] = "virtual"
+
+    return roles

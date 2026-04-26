@@ -27,14 +27,37 @@
         <!-- 端口头部 -->
         <div class="port-header">
           <span class="port-name">{{ p.name }}</span>
-          <el-tag
-            :type="p.state === 'UP' ? 'success' : 'danger'"
-            size="small"
-            effect="dark"
-            class="port-state-tag"
-          >
-            {{ p.state === 'UP' ? '已连接' : '未连接' }}
-          </el-tag>
+          <div class="port-header-right">
+            <el-tag
+              v-if="p.role === 'wan'"
+              type="warning"
+              size="small"
+              effect="dark"
+              class="role-tag"
+            >WAN</el-tag>
+            <el-tag
+              v-else-if="p.role === 'lan'"
+              type="primary"
+              size="small"
+              effect="dark"
+              class="role-tag"
+            >LAN</el-tag>
+            <el-tag
+              v-else
+              type="info"
+              size="small"
+              effect="plain"
+              class="role-tag"
+            >{{ p.role.toUpperCase() }}</el-tag>
+            <el-tag
+              :type="p.state === 'UP' ? 'success' : 'danger'"
+              size="small"
+              effect="dark"
+              class="port-state-tag"
+            >
+              {{ p.state === 'UP' ? '已连接' : '未连接' }}
+            </el-tag>
+          </div>
         </div>
 
         <!-- 端口速率指示 -->
@@ -646,6 +669,11 @@ onMounted(fetchInterfaces)
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+.port-header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .port-name {
   font-size: 16px;
