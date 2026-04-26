@@ -87,6 +87,21 @@ const routes = [
         component: () => import('@/views/samba/SambaManager.vue'),
       },
       {
+        path: 'pppoe',
+        name: 'PPPoE',
+        component: () => import('@/views/pppoe/PPPoEConnection.vue'),
+      },
+      {
+        path: 'terminal',
+        name: 'Terminal',
+        component: () => import('@/views/terminal/WebTerminal.vue'),
+      },
+      {
+        path: 'apt',
+        name: 'AptSources',
+        component: () => import('@/views/apt/AptSources.vue'),
+      },
+      {
         path: 'orchestrator',
         name: 'Orchestrator',
         component: () => import('@/views/orchestrator/OrchestratorCanvas.vue'),

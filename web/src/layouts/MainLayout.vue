@@ -75,6 +75,18 @@
           <el-icon><Connection /></el-icon>
           <span>Samba 共享</span>
         </el-menu-item>
+        <el-menu-item index="/pppoe">
+          <el-icon><Connection /></el-icon>
+          <span>PPPoE 拨号</span>
+        </el-menu-item>
+        <el-menu-item index="/terminal">
+          <el-icon><Monitor /></el-icon>
+          <span>Web 终端</span>
+        </el-menu-item>
+        <el-menu-item index="/apt">
+          <el-icon><Setting /></el-icon>
+          <span>软件源</span>
+        </el-menu-item>
         <el-menu-item index="/orchestrator">
           <el-icon><SetUp /></el-icon>
           <span>流量编排</span>
@@ -153,6 +165,11 @@ const pageTitle = computed(() => {
     '/appstore': '应用市场',
     '/ddns': 'DDNS',
     '/storage': '存储管理',
+    '/monitor': '系统监控',
+    '/samba': 'Samba 共享',
+    '/pppoe': 'PPPoE 拨号',
+    '/terminal': 'Web 终端',
+    '/apt': '软件源',
     '/orchestrator': '流量编排',
     '/vm': '虚拟机',
     '/system': '系统设置',
