@@ -16,6 +16,7 @@
     <!-- ─────────────── 物理端口面板 ─────────────── -->
     <div class="section-title">
       <el-icon :size="18"><Monitor /></el-icon> 物理端口
+      <span class="section-count">{{ physicalPorts.length }}</span>
     </div>
     <div class="port-grid">
       <div
@@ -69,7 +70,7 @@
             </template>
             <template v-else>
               <span class="speed-icon"><el-icon :size="28"><Monitor /></el-icon></span>
-              <span class="speed-unit">虚拟端口</span>
+              <span class="speed-unit">物理端口</span>
             </template>
           </div>
         </div>
@@ -124,44 +125,108 @@
           </el-button>
         </div>
       </div>
+
+      <!-- 无物理端口时的占位 -->
+      <div v-if="physicalPorts.length === 0" class="empty-card glass-card">
+        <el-icon :size="48"><Monitor /></el-icon>
+        <span class="empty-text">未检测到物理端口</span>
+      </div>
     </div>
 
-    <!-- ─────────────── 接口列表 ─────────────── -->
+    <!-- ─────────────── 虚拟接口面板 ─────────────── -->
     <div class="section-title">
-      <el-icon :size="18"><List /></el-icon> 全部接口
+      <el-icon :size="18"><Connection /></el-icon> 虚拟接口
+      <span class="section-count">{{ virtualPorts.length }}</span>
     </div>
-    <div class="glass-card table-wrapper">
-      <el-table :data="interfaces" stripe style="width: 100%" v-loading="loading" empty-text="暂无接口数据">
-        <el-table-column prop="name" label="接口名" width="150" />
-        <el-table-column label="状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="row.state === 'UP' ? 'success' : 'danger'" size="small" effect="plain">
-              {{ row.state === 'UP' ? 'UP' : 'DOWN' }}
+    <div class="port-grid">
+      <div
+        v-for="p in virtualPorts"
+        :key="p.name"
+        class="port-card glass-card virtual"
+        :class="{ 'is-up': p.state === 'UP', 'is-down': p.state !== 'UP' }"
+      >
+        <!-- 端口头部 -->
+        <div class="port-header">
+          <span class="port-name">{{ p.name }}</span>
+          <div class="port-header-right">
+            <el-tag
+              v-if="p.role === 'wan'"
+              type="warning"
+              size="small"
+              effect="dark"
+              class="role-tag"
+            >WAN</el-tag>
+            <el-tag
+              v-else-if="p.role === 'lan'"
+              type="primary"
+              size="small"
+              effect="dark"
+              class="role-tag"
+            >LAN</el-tag>
+            <el-tag
+              v-else
+              type="info"
+              size="small"
+              effect="plain"
+              class="role-tag"
+            >{{ p.role.toUpperCase() }}</el-tag>
+            <el-tag
+              :type="p.state === 'UP' ? 'success' : 'danger'"
+              size="small"
+              effect="dark"
+              class="port-state-tag"
+            >
+              {{ p.state === 'UP' ? '运行中' : '已停止' }}
             </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="mac" label="MAC 地址" width="180" />
-        <el-table-column label="IPv4 地址">
-          <template #default="{ row }">
-            <span v-if="row.ipv4 && row.ipv4.length">{{ row.ipv4.join(', ') }}</span>
-            <span v-else class="text-muted">—</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="mtu" label="MTU" width="80" />
-        <el-table-column label="速率" width="90">
-          <template #default="{ row }">
-            {{ row.speed ? row.speed + ' Mbps' : '—' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="type" label="类型" width="100" />
-        <el-table-column label="操作" width="120" fixed="right">
-          <template #default="{ row }">
-            <el-button text type="primary" size="small" @click="showEditDialog(row)">
-              编辑
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+          </div>
+        </div>
+
+        <!-- 速率指示（虚拟接口不显示速率环，显示类型图标） -->
+        <div class="port-speed-indicator">
+          <div class="speed-ring virtual-ring" :class="{ active: p.state === 'UP' }">
+            <span class="speed-icon">
+              <el-icon :size="26">
+                <template v-if="p.role === 'docker' || p.name.startsWith('docker')">Wallet</template>
+                <template v-else-if="p.role === 'container' || p.name.startsWith('veth')">Connection</template>
+                <template v-else-if="p.role === 'wan' || p.name.startsWith('ppp')">Link</template>
+                <template v-else>FolderOpened</template>
+              </el-icon>
+            </span>
+            <span class="speed-unit">{{ p.type }}</span>
+          </div>
+        </div>
+
+        <!-- 接口详情 -->
+        <div class="port-details">
+          <div class="detail-row" v-if="p.mac">
+            <span class="detail-label">MAC</span>
+            <span class="detail-value mono">{{ p.mac }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">IP 地址</span>
+            <span class="detail-value" :class="{ 'text-muted': !p.ipv4 || !p.ipv4.length }">
+              {{ p.ipv4 && p.ipv4.length ? p.ipv4.join(', ') : '未配置' }}
+            </span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">MTU</span>
+            <span class="detail-value">{{ p.mtu }}</span>
+          </div>
+        </div>
+
+        <!-- 端口操作 -->
+        <div class="port-actions">
+          <el-button text type="primary" size="small" @click="showEditDialog(p)">
+            <el-icon><Edit /></el-icon> 编辑
+          </el-button>
+        </div>
+      </div>
+
+      <!-- 无虚拟接口时的占位 -->
+      <div v-if="virtualPorts.length === 0" class="empty-card glass-card">
+        <el-icon :size="48"><Connection /></el-icon>
+        <span class="empty-text">暂无虚拟接口</span>
+      </div>
     </div>
 
     <!-- ─────────────── 编辑对话框 ─────────────── -->
@@ -430,6 +495,11 @@ const physicalPorts = computed(() => {
   return interfaces.value.filter(i => i.type === 'physical')
 })
 
+// 虚拟接口列表
+const virtualPorts = computed(() => {
+  return interfaces.value.filter(i => i.type !== 'physical')
+})
+
 async function refreshAll() {
   refreshing.value = true
   await Promise.all([fetchInterfaces()])
@@ -633,6 +703,15 @@ onMounted(fetchInterfaces)
   margin-bottom: 16px;
   margin-top: 32px;
 }
+.section-count {
+  font-size: 12px;
+  color: #aaa;
+  font-weight: 400;
+  background: rgba(0,0,0,0.04);
+  padding: 0 8px;
+  border-radius: 10px;
+  line-height: 20px;
+}
 
 /* 端口网格 */
 .port-grid {
@@ -663,6 +742,33 @@ onMounted(fetchInterfaces)
 }
 .port-card.is-down {
   border-left: 3px solid #f56c6c;
+}
+.port-card.virtual {
+  border-left: 3px solid #909399;
+  background: rgba(255,255,255,0.45);
+}
+.port-card.virtual:hover {
+  border-color: rgba(0,82,255,0.3);
+}
+.port-card.virtual .port-name {
+  color: #555;
+  font-weight: 500;
+}
+
+/* 空卡片占位 */
+.empty-card {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  color: #bbb;
+  gap: 12px;
+}
+.empty-text {
+  font-size: 14px;
+  color: #aaa;
 }
 
 .port-header {
