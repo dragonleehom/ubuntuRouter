@@ -5,10 +5,10 @@
       <p class="page-desc">管理无线网络连接和热点配置</p>
     </div>
 
-    <!-- 无 WiFi 硬件 -->
+      <!-- 无 WiFi 硬件 -->
     <el-empty v-if="!wifiAvailable && !loading" description="未检测到 WiFi 硬件">
       <template #image>
-        <el-icon :size="64" color="#888"><Wifi /></el-icon>
+        <el-icon :size="64" color="#888"><Connection /></el-icon>
       </template>
       <p style="color: #666; font-size: 13px">当前系统没有检测到无线网卡，或有线虚拟机环境不支持 WiFi</p>
     </el-empty>
@@ -157,7 +157,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { api } from '@/stores'
-import { Refresh, Wifi } from '@element-plus/icons-vue'
+import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
 const loading = ref(true)
