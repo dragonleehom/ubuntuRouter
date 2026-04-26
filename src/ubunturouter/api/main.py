@@ -73,9 +73,8 @@ def create_app() -> FastAPI:
     # 静态文件（Vue 前端构建产物） - 多个备选路径
     static_candidates = [
         Path(__file__).resolve().parent.parent.parent / "web" / "dist",  # 包内路径
-        Path("/home/ihermes/ubuntu-router/web/dist"),  # VM 共享目录
+        Path("/opt/ubunturouter/web/dist"),  # 安装目标路径（优先）
         Path("/tmp/ubunturouter-web-build/dist"),  # VM 本地构建目录
-        Path("/opt/ubunturouter/web/dist"),  # 安装目标路径
     ]
     static_dir = None
     for p in static_candidates:
