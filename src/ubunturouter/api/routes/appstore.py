@@ -1,0 +1,274 @@
+"""应用市场 API — 浏览/安装/更新/卸载/仓库管理"""
+
+from fastapi import APIRouter, HTTPException, Query, Body, Depends
+from typing import Optional
+
+from ..deps import require_auth
+from ...appstore import (
+    scan_all_repos, get_installed_apps, get_categories,
+    search_apps, install, uninstall, update, precheck,
+    list_repos, sync_all_repos, sync_repo, add_repo, remove_repo,
+    ensure_official_repo,
+)
+
+router = APIRouter()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 应用浏览
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/apps")
+async def list_apps(
+    category: str = Query("", description="分类筛选"),
+    search: str = Query("", description="搜索关键词"),
+    auth=Depends(require_auth),
+):
+    """获取应用列表"""
+    # 确保官方仓库已拉取
+    ensure_official_repo()
+
+    apps = scan_all_repos()
+    installed = get_installed_apps()
+
+    # 标记已安装
+    for app_id, manifest in apps.items():
+        if app_id in installed:
+            manifest.installed = True
+            manifest.installed_version = installed[app_id]
+
+    # 分类筛选
+    if category:
+        apps = {k: v for k, v in apps.items() if v.category == category}
+
+    # 搜索
+    if search:
+        apps = search_apps(apps, search)
+
+    categories = get_categories(apps)
+
+    return {
+        "apps": [
+            {
+                "id": app_id,
+                "name": m.name,
+                "version": m.version,
+                "description": m.description[:200] if m.description else "",
+                "category": m.category,
+                "author": m.author,
+                "icon": m.icon,
+                "tags": m.tags,
+                "homepage": m.homepage,
+                "installed": m.installed,
+                "installed_version": m.installed_version,
+            }
+            for app_id, m in sorted(apps.items())
+        ],
+        "total": len(apps),
+        "categories": categories,
+    }
+
+
+@router.get("/apps/{app_id}")
+async def get_app_detail(app_id: str, auth=Depends(require_auth)):
+    """获取应用详情"""
+    apps = scan_all_repos()
+    installed = get_installed_apps()
+
+    if app_id not in apps:
+        raise HTTPException(status_code=404, detail=f"应用 '{app_id}' 未找到")
+
+    manifest = apps[app_id]
+    manifest.installed = app_id in installed
+    manifest.installed_version = installed.get(app_id, "")
+
+    return {
+        "app": {
+            "id": manifest.id,
+            "name": manifest.name,
+            "version": manifest.version,
+            "description": manifest.description,
+            "category": manifest.category,
+            "author": manifest.author,
+            "icon": manifest.icon,
+            "screenshots": manifest.screenshots,
+            "tags": manifest.tags,
+            "homepage": manifest.homepage,
+            "env_vars": manifest.env_vars,
+            "ports": manifest.ports,
+            "volumes": manifest.volumes,
+            "requires": manifest.requires,
+            "installed": manifest.installed,
+            "installed_version": manifest.installed_version,
+            "repo": manifest.repo,
+        }
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 应用生命周期
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/installed")
+async def list_installed_apps(auth=Depends(require_auth)):
+    """获取已安装应用列表"""
+    apps = scan_all_repos()
+    installed_ids = get_installed_apps()
+
+    result = []
+    for app_id, version in installed_ids.items():
+        if app_id in apps:
+            manifest = apps[app_id]
+            result.append({
+                "id": app_id,
+                "name": manifest.name,
+                "version": version,
+                "available_version": manifest.version,
+                "has_update": version != manifest.version,
+                "category": manifest.category,
+                "icon": manifest.icon,
+                "description": manifest.description[:200],
+            })
+        else:
+            result.append({
+                "id": app_id,
+                "name": app_id,
+                "version": version,
+                "available_version": "",
+                "has_update": False,
+                "category": "未知",
+                "icon": "",
+                "description": "",
+            })
+
+    return {"apps": result, "total": len(result)}
+
+
+@router.post("/apps/{app_id}/install")
+async def install_app(app_id: str,
+                      env: dict = Body({}, description="环境变量覆盖"),
+                      auth=Depends(require_auth)):
+    """安装应用"""
+    apps = scan_all_repos()
+
+    if app_id not in apps:
+        raise HTTPException(status_code=404, detail=f"应用 '{app_id}' 未找到")
+
+    manifest = apps[app_id]
+
+    # 预检
+    check = precheck(manifest)
+    if not check["passed"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"安装预检未通过: {'; '.join(check['issues'])}",
+        )
+
+    # 安装
+    result = install(manifest, env_override=env)
+    if not result["success"]:
+        raise HTTPException(status_code=500, detail=result.get("error", "安装失败"))
+
+    return result
+
+
+@router.post("/apps/{app_id}/update")
+async def update_app(app_id: str, auth=Depends(require_auth)):
+    """更新应用"""
+    result = update(app_id)
+    if not result["success"]:
+        raise HTTPException(status_code=500, detail=result.get("error", "更新失败"))
+    return result
+
+
+@router.post("/apps/{app_id}/uninstall")
+async def uninstall_app(app_id: str,
+                        keep_data: bool = Query(True, description="保留数据"),
+                        auth=Depends(require_auth)):
+    """卸载应用"""
+    result = uninstall(app_id, keep_data=keep_data)
+    if not result["success"]:
+        raise HTTPException(status_code=500, detail=result.get("error", "卸载失败"))
+    return result
+
+
+@router.get("/apps/{app_id}/precheck")
+async def precheck_app(app_id: str, auth=Depends(require_auth)):
+    """安装前预检"""
+    apps = scan_all_repos()
+    if app_id not in apps:
+        raise HTTPException(status_code=404, detail=f"应用 '{app_id}' 未找到")
+    check = precheck(apps[app_id])
+    return check
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 仓库管理
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/repo/list")
+async def list_repos_api(auth=Depends(require_auth)):
+    """列出已配置的仓库"""
+    repos = list_repos()
+    return {
+        "repos": [
+            {
+                "name": r.name,
+                "url": r.url,
+                "status": r.status,
+                "local_path": str(r.local_path) if r.local_path else "",
+            }
+            for r in repos
+        ],
+    }
+
+
+@router.post("/repo/sync")
+async def sync_all_repos_api(auth=Depends(require_auth)):
+    """同步所有仓库"""
+    results = sync_all_repos()
+    return {
+        "results": results,
+        "total": len(results),
+    }
+
+
+@router.post("/repo/sync/{repo_name}")
+async def sync_repo_api(repo_name: str, auth=Depends(require_auth)):
+    """同步单个仓库"""
+    result = sync_repo(repo_name)
+    return result
+
+
+@router.post("/repo/add")
+async def add_repo_api(name: str = Body(...), url: str = Body(...),
+                       branch: str = Body("main"),
+                       auth=Depends(require_auth)):
+    """添加第三方仓库"""
+    result = add_repo(name, url, branch)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result.get("error", "添加仓库失败"))
+    return result
+
+
+@router.delete("/repo/{repo_name}")
+async def remove_repo_api(repo_name: str, auth=Depends(require_auth)):
+    """删除仓库"""
+    if repo_name == "official":
+        raise HTTPException(status_code=400, detail="不能删除官方仓库")
+    result = remove_repo(repo_name)
+    if not result["success"]:
+        raise HTTPException(status_code=404, detail=result.get("error", "删除失败"))
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 分类
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/categories")
+async def list_categories(auth=Depends(require_auth)):
+    """获取所有应用分类"""
+    apps = scan_all_repos()
+    categories = get_categories(apps)
+    return {"categories": categories}
