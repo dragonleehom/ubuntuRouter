@@ -89,39 +89,48 @@ run_tests() {
 
     cd "$SCRIPT_DIR"
 
-    # 检查虚环境
     local VENV="$SCRIPT_DIR/.venv"
-    local VENV_ACTIVE=false
-    if [ -f "$VENV/bin/activate" ]; then
-        VENV_ACTIVE=true
-    fi
 
-    # 安装测试依赖
-    if ! pip show pytest >/dev/null 2>&1 && ! pip show pytest-asyncio >/dev/null 2>&1; then
-        log_info "安装测试依赖 (pytest, pytest-asyncio)..."
-        if $VENV_ACTIVE; then
-            "$VENV/bin/pip" install pytest pytest-asyncio httpx >/dev/null 2>&1 || true
-        else
-            pip install pytest pytest-asyncio httpx >/dev/null 2>&1 || true
+    # 执行策略: 如果 tests/ 下有 __init__.py 则用 pytest，否则直接 python3 运行
+    local HAS_PYTEST=false
+    if [ -f "$SCRIPT_DIR/tests/__init__.py" ] || [ -d "$SCRIPT_DIR/tests/__pycache__" ]; then
+        # 尝试查找 pytest
+        if command -v pytest >/dev/null 2>&1; then
+            HAS_PYTEST=true
+        elif [ -f "$VENV/bin/pytest" ]; then
+            HAS_PYTEST=true
+            alias pytest="$VENV/bin/pytest"
+        elif python3 -m pytest --version >/dev/null 2>&1; then
+            HAS_PYTEST=true
         fi
     fi
 
-    local PYTHON="$VENV/bin/python3"
-    local PYTEST_CMD
-    if $VENV_ACTIVE; then
-        PYTEST_CMD="$VENV/bin/pytest"
-    else
-        PYTEST_CMD="python3 -m pytest"
-    fi
+    cd "$SCRIPT_DIR"
 
     if [ -n "$test_filter" ]; then
         log_info "  过滤模块: $test_filter"
-        $PYTEST_CMD "tests/" -k "$test_filter" -v --tb=short \
-            --no-header -q --pythonpath=src 2>&1 || true
+        if $HAS_PYTEST; then
+            PYTHONPATH=src python3 -m pytest "tests/" -k "$test_filter" -v --tb=short \
+                --no-header -q -o pythonpath=src 2>&1 || true
+        else
+            log_warn "  pytest 不可用, 尝试直接运行测试脚本..."
+            for f in tests/"$test_filter"*.py tests/test_"$test_filter"*.py; do
+                [ -f "$f" ] && PYTHONPATH=src python3 "$f" 2>&1 || true
+            done
+        fi
     else
         log_info "  运行全部测试..."
-        $PYTEST_CMD "tests/" -v --tb=short \
-            --no-header --pythonpath=src 2>&1 || true
+        if $HAS_PYTEST; then
+            PYTHONPATH=src python3 -m pytest "tests/" -v --tb=short \
+                --no-header 2>&1 || true
+        else
+            # 没有 pytest 则直接顺序运行 test_*.py
+            for f in tests/test_*.py; do
+                [ -f "$f" ] || continue
+                log_info "    运行: $f"
+                PYTHONPATH=src python3 "$f" 2>&1 || true
+            done
+        fi
     fi
 
     local exit_code=$?
