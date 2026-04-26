@@ -291,14 +291,20 @@ class ConfigEngine:
               auto_rollback: bool = True) -> ApplyResult:
         """
         应用配置变更
-        
+
         流程:
         1. 校验
-        2. 创建快照
-        3. 保存配置
-        4. 通知各 Manager Apply
+        2. 计算 Diff
+        3. 创建快照
+        4. 保存配置
+        5. 发布 ConfigChangeEvent → 各 Generator 执行
+        6. 全部成功或回滚
         """
+        from .events import ConfigChangeEvent, get_event_bus
+        from .generators.base import get_all_generators, get_generator
+
         start_time = time.time()
+        bus = get_event_bus()
 
         with EngineLock():
             # 1. 校验
@@ -310,26 +316,42 @@ class ConfigEngine:
                     execution_time_ms=int((time.time() - start_time) * 1000)
                 )
 
-            # 2. 创建快照
-            snapshot_id = None
+            # 2. 计算 Diff 并确定变更的配置节
+            change_summary = ""
+            changed_sections = []
+            old_config_dict = None
+
             if self.exists():
                 current = self.load()
                 diff_result = self.diff(new_config)
+                old_config_dict = current.model_dump(exclude_none=True) if not diff_result.has_changes else None
+                change_summary = diff_result.summary
+                changed_sections = diff_result.changed_sections
+
                 if not diff_result.has_changes:
                     return ApplyResult(
                         success=True,
                         message='配置无变更，跳过 Apply',
                         execution_time_ms=int((time.time() - start_time) * 1000)
                     )
+            else:
+                # 首次配置
+                changed_sections = ["interfaces", "firewall", "routing", "dhcp", "dns", "system"]
+                change_summary = "初始配置"
+
+            # 3. 创建快照
+            snapshot_id = None
+            if self.exists():
+                current = self.load()
                 snapshot_id = self.create_snapshot(
-                    current, summary=diff_result.summary
+                    current, summary=change_summary
                 )
             else:
                 snapshot_id = self.create_snapshot(
                     new_config, summary="初始配置"
                 )
 
-            # 3. 保存新配置
+            # 4. 保存新配置
             try:
                 self.save(new_config)
             except Exception as e:
@@ -339,17 +361,49 @@ class ConfigEngine:
                     execution_time_ms=int((time.time() - start_time) * 1000)
                 )
 
-            # 4. 通知各 Generator（此处为桩，后续由 Manager 实现）
-            # TODO: 调用 NetworkManager.apply()
-            # TODO: 调用 FirewallManager.apply()
-            # TODO: 调用 DnsmasqManager.apply()
-
-            return ApplyResult(
-                success=True,
-                message='配置已保存（子系统 Apply 待实现）',
+            # 5. 发布事件 → 各 Generator 执行
+            event = ConfigChangeEvent(
                 snapshot_id=snapshot_id,
-                execution_time_ms=int((time.time() - start_time) * 1000)
+                changed_sections=changed_sections,
+                old_config=old_config_dict,
+                new_config=new_config.model_dump(exclude_none=True),
             )
+
+            results = bus.publish(event)
+
+            # 6. 检查结果
+            failures = [r for r in results if not r.success]
+            if failures and auto_rollback:
+                # 有失败，自动回滚
+                logger.warning(
+                    "Apply failed for %d generators, rolling back to snapshot %s",
+                    len(failures), snapshot_id
+                )
+                if snapshot_id:
+                    self.rollback(snapshot_id)
+                return ApplyResult(
+                    success=False,
+                    message=f'配置应用失败 ({len(failures)}/{len(results)} 生成器失败)，已自动回滚。\n'
+                            + '\n'.join(f'  ✗ {r.generator_name}: {r.message}' for r in failures),
+                    snapshot_id=snapshot_id,
+                    execution_time_ms=int((time.time() - start_time) * 1000)
+                )
+
+            all_ok = len(results) > 0 and len(failures) == 0
+            if all_ok:
+                return ApplyResult(
+                    success=True,
+                    message=f'配置已应用 ({len(results)} 生成器执行成功)',
+                    snapshot_id=snapshot_id,
+                    execution_time_ms=int((time.time() - start_time) * 1000)
+                )
+            else:
+                return ApplyResult(
+                    success=True,
+                    message=f'配置已保存（无生成器被触发）',
+                    snapshot_id=snapshot_id,
+                    execution_time_ms=int((time.time() - start_time) * 1000)
+                )
 
     def rollback(self, snapshot_id: str = "latest") -> ApplyResult:
         """回滚到指定快照"""
