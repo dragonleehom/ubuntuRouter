@@ -43,18 +43,18 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="vcpus" label="CPU" width="80" align="center" />
-          <el-table-column prop="memory_mb" label="内存" width="100" align="center">
+          <el-table-column prop="vcpus" label="CPU" width="80" align="center" class="hide-mobile" />
+          <el-table-column prop="memory_mb" label="内存" width="100" align="center" class="hide-mobile">
             <template #default="{ row }">
               {{ formatMemory(row.memory_mb) }}
             </template>
           </el-table-column>
-          <el-table-column prop="disk_gb" label="磁盘" width="80" align="center">
+          <el-table-column prop="disk_gb" label="磁盘" width="80" align="center" class="hide-mobile">
             <template #default="{ row }">
               {{ row.disk_gb || '-' }} GB
             </template>
           </el-table-column>
-          <el-table-column label="VNC 端口" width="110" align="center">
+          <el-table-column label="VNC 端口" width="110" align="center" class="hide-mobile">
             <template #default="{ row }">
               <span v-if="row.vnc_port">{{ row.vnc_port }}</span>
               <span v-else class="text-muted">-</span>

@@ -48,8 +48,8 @@
             <el-table-column prop="mac" label="MAC 地址" width="160" />
             <el-table-column prop="ip" label="IP 地址" width="140" />
             <el-table-column prop="hostname" label="主机名" min-width="150" />
-            <el-table-column prop="expires" label="到期时间" width="180" />
-            <el-table-column label="状态" width="80">
+            <el-table-column prop="expires" label="到期时间" width="180" class="hide-mobile" />
+            <el-table-column label="状态" width="80" class="hide-mobile">
               <template #default="{ row }">
                 <el-tag :type="row.remaining_seconds > 0 ? 'success' : 'info'" size="small">
                   {{ row.remaining_seconds > 0 ? '活跃' : '过期' }}

@@ -19,8 +19,8 @@
 
         <el-table :data="wanStatus" stripe style="width: 100%" v-loading="loading.status">
           <el-table-column prop="name" label="线路" width="100" />
-          <el-table-column prop="iface" label="接口" width="120" />
-          <el-table-column prop="gateway" label="网关" width="140" />
+          <el-table-column prop="iface" label="接口" width="120" class="hide-mobile" />
+          <el-table-column prop="gateway" label="网关" width="140" class="hide-mobile" />
           <el-table-column label="状态" width="90">
             <template #default="{ row }">
               <el-tag :type="row.online ? 'success' : 'danger'" size="small" effect="dark">
@@ -28,27 +28,27 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="活跃" width="80" align="center">
+          <el-table-column label="活跃" width="80" align="center" class="hide-mobile">
             <template #default="{ row }">
               <el-tag v-if="row.is_active" type="primary" size="small" effect="dark">主用</el-tag>
               <span v-else style="color:#666">备用</span>
             </template>
           </el-table-column>
-          <el-table-column prop="latency_ms" label="延迟(ms)" width="100">
+          <el-table-column prop="latency_ms" label="延迟(ms)" width="100" class="hide-mobile">
             <template #default="{ row }">
               <span :style="{ color: row.latency_ms > 100 ? '#E6A23C' : '#67C23A' }">
                 {{ row.latency_ms }} ms
               </span>
             </template>
           </el-table-column>
-          <el-table-column prop="packet_loss" label="丢包率" width="90">
+          <el-table-column prop="packet_loss" label="丢包率" width="90" class="hide-mobile">
             <template #default="{ row }">
               <span :style="{ color: row.packet_loss > 5 ? '#F56C6C' : '#67C23A' }">
                 {{ row.packet_loss }}%
               </span>
             </template>
           </el-table-column>
-          <el-table-column prop="failures" label="连续失败" width="100" />
+          <el-table-column prop="failures" label="连续失败" width="100" class="hide-mobile" />
           <el-table-column label="操作" width="120" fixed="right">
             <template #default="{ row }">
               <el-button

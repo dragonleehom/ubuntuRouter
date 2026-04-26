@@ -67,6 +67,16 @@ const routes = [
         component: () => import('@/views/appstore/AppStore.vue'),
       },
       {
+        path: 'ddns',
+        name: 'DDNS',
+        component: () => import('@/views/ddns/DdnsConfig.vue'),
+      },
+      {
+        path: 'storage',
+        name: 'Storage',
+        component: () => import('@/views/storage/StorageManager.vue'),
+      },
+      {
         path: 'orchestrator',
         name: 'Orchestrator',
         component: () => import('@/views/orchestrator/OrchestratorCanvas.vue'),

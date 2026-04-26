@@ -277,6 +277,12 @@ onUnmounted(() => {
   grid-template-columns: 1fr 1fr;
   gap: 20px;
 }
+@media (max-width: 767px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
 .panel {
   background: #141414;
   border-radius: 12px;
@@ -292,8 +298,14 @@ onUnmounted(() => {
   font-size: 15px;
   color: #ccc;
 }
+@media (max-width: 767px) {
+  .panel-header { padding: 12px 16px; font-size: 14px; }
+}
 .panel-body {
   padding: 16px 20px;
+}
+@media (max-width: 767px) {
+  .panel-body { padding: 12px 14px; }
 }
 .panel-network {
   grid-row: span 1;
@@ -301,12 +313,21 @@ onUnmounted(() => {
 .panel-apps {
   grid-column: 1;
 }
+@media (max-width: 767px) {
+  .panel-apps { grid-column: auto; }
+}
 .panel-topo {
   grid-column: 1 / -1;
   margin-bottom: 16px;
 }
+@media (max-width: 767px) {
+  .panel-topo { margin-bottom: 12px; }
+}
 .panel-system {
   grid-row: span 2;
+}
+@media (max-width: 767px) {
+  .panel-system { grid-row: auto; }
 }
 
 /* 接口列表 */

@@ -1,6 +1,6 @@
 """Dnsmasq 配置生成器 — DHCP + DNS"""
 
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 from ..config.models import UbunturouterConfig, DHCPPoolConfig, DNSConfig, StaticLease
 from .base import ConfigGenerator
 

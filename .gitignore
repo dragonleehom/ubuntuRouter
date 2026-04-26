@@ -7,3 +7,5 @@ node_modules/
 web/dist/
 .git-credentials
 *.log
+.venv/
+.venv/*

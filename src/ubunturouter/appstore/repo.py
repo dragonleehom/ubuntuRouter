@@ -55,12 +55,18 @@ def add_repo(name: str, url: str, branch: str = "main") -> dict:
         REPOS_DIR, timeout=300
     )
 
+    # 检查 1Panel 仓库: 克隆后检查是否有 apps/ 子目录
+    # 1Panel-appstore 克隆下来结构: {repo}/apps/{category}/{app}/{version}/data.yml
+    # 所以 repo_path 就是 REPOS_DIR / name 本身
+    if not result["success"]:
+        return result
+
     return {
         "success": result["success"],
         "name": name,
         "url": url,
         "path": str(repo_path),
-        "error": result["stderr"] if not result["success"] else "",
+        "error": result.get("stderr", "") if not result["success"] else "",
     }
 
 

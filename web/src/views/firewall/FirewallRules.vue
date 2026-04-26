@@ -49,15 +49,15 @@
           </div>
           <el-table :data="zones" stripe size="small" v-loading="loading">
             <el-table-column prop="name" label="名称" width="160" />
-            <el-table-column label="类型" width="100">
+            <el-table-column label="类型" width="100" class="hide-mobile">
               <template #default="{ row }">
                 <el-tag :type="row.type === 'builtin' ? 'info' : 'warning'" size="small">
                   {{ row.type === 'builtin' ? '内置' : '自定义' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="policy" label="默认策略" width="100" />
-            <el-table-column prop="rules_count" label="规则数" width="100" align="right" />
+            <el-table-column prop="policy" label="默认策略" width="100" class="hide-mobile" />
+            <el-table-column prop="rules_count" label="规则数" width="100" align="right" class="hide-mobile" />
             <el-table-column label="操作" width="100">
               <template #default="{ row }">
                 <el-button v-if="row.type === 'custom'"
@@ -75,11 +75,11 @@
             </el-button>
           </div>
           <el-table :data="rules" stripe size="small" v-loading="loading" max-height="500">
-            <el-table-column prop="handle" label="Handle" width="70" />
-            <el-table-column prop="chain" label="链" width="100" />
+            <el-table-column prop="handle" label="Handle" width="70" class="hide-mobile" />
+            <el-table-column prop="chain" label="链" width="100" class="hide-mobile" />
             <el-table-column prop="rule" label="规则" min-width="300" show-overflow-tooltip />
-            <el-table-column prop="packets" label="数据包" width="100" align="right" />
-            <el-table-column prop="bytes" label="字节" width="100" align="right" />
+            <el-table-column prop="packets" label="数据包" width="100" align="right" class="hide-mobile" />
+            <el-table-column prop="bytes" label="字节" width="100" align="right" class="hide-mobile" />
             <el-table-column label="操作" width="80" fixed="right">
               <template #default="{ row }">
                 <el-button text type="danger" size="small" @click="deleteRule(row)">删除</el-button>
@@ -96,10 +96,10 @@
             </el-button>
           </div>
           <el-table :data="portForwards" stripe size="small" v-loading="loading" max-height="500">
-            <el-table-column prop="handle" label="Handle" width="70" />
-            <el-table-column prop="chain" label="链" width="100" />
+            <el-table-column prop="handle" label="Handle" width="70" class="hide-mobile" />
+            <el-table-column prop="chain" label="链" width="100" class="hide-mobile" />
             <el-table-column prop="rule" label="规则" min-width="350" show-overflow-tooltip />
-            <el-table-column prop="packets" label="数据包" width="100" align="right" />
+            <el-table-column prop="packets" label="数据包" width="100" align="right" class="hide-mobile" />
             <el-table-column label="操作" width="80">
               <template #default="{ row }">
                 <el-button text type="danger" size="small" @click="deletePortForward(row)">删除</el-button>
@@ -119,8 +119,8 @@
             <el-table-column prop="protocol" label="协议" width="80" />
             <el-table-column prop="src" label="源地址" width="180" />
             <el-table-column prop="dst" label="目标地址" width="180" />
-            <el-table-column prop="state" label="状态" width="100" />
-            <el-table-column prop="bytes" label="流量" width="100" align="right" />
+            <el-table-column prop="state" label="状态" width="100" class="hide-mobile" />
+            <el-table-column prop="bytes" label="流量" width="100" align="right" class="hide-mobile" />
           </el-table>
         </el-tab-pane>
       </el-tabs>

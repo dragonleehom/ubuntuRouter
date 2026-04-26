@@ -41,7 +41,7 @@
 
         <el-table :data="containers" stripe style="width: 100%" v-loading="loading">
           <el-table-column prop="name" label="名称" min-width="180" />
-          <el-table-column prop="image" label="镜像" min-width="200">
+          <el-table-column prop="image" label="镜像" min-width="200" class="hide-mobile">
             <template #default="{ row }">
               <span class="image-name">{{ row.image }}</span>
             </template>
@@ -53,8 +53,8 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="state" label="详情" min-width="160" />
-          <el-table-column prop="ports" label="端口" min-width="160">
+          <el-table-column prop="state" label="详情" min-width="160" class="hide-mobile" />
+          <el-table-column prop="ports" label="端口" min-width="160" class="hide-mobile">
             <template #default="{ row }">
               <span v-if="row.ports && row.ports.length">
                 <el-tag v-for="p in row.ports" :key="`${p.host_port}-${p.container_port}`" size="small" style="margin: 1px">
@@ -97,7 +97,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="services" label="服务" min-width="200">
+          <el-table-column prop="services" label="服务" min-width="200" class="hide-mobile">
             <template #default="{ row }">
               <el-tag v-for="s in row.services" :key="s.name" size="small" style="margin: 1px"
                 :type="s.state === 'running' ? 'success' : 'info'">

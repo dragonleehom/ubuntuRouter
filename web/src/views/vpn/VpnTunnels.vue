@@ -49,14 +49,14 @@
       </template>
       <el-table :data="tunnels" stripe size="small" v-loading="loading">
         <el-table-column prop="name" label="名称" width="100" />
-        <el-table-column prop="public_key" label="公钥" min-width="200">
+        <el-table-column prop="public_key" label="公钥" min-width="200" class="hide-mobile">
           <template #default="{ row }">
             <code style="font-size:11px;color:#999;">{{ row.public_key ? row.public_key.substring(0, 32) + '...' : '-' }}</code>
           </template>
         </el-table-column>
-        <el-table-column prop="listen_port" label="端口" width="80" />
-        <el-table-column prop="address" label="隧道 IP" width="140" />
-        <el-table-column prop="peers_count" label="Peer 数" width="80" align="right" />
+        <el-table-column prop="listen_port" label="端口" width="80" class="hide-mobile" />
+        <el-table-column prop="address" label="隧道 IP" width="140" class="hide-mobile" />
+        <el-table-column prop="peers_count" label="Peer 数" width="80" align="right" class="hide-mobile" />
         <el-table-column label="状态" width="80">
           <template #default="{ row }">
             <el-tag :type="row.running ? 'success' : 'info'" size="small">
@@ -128,19 +128,19 @@
             <code style="font-size:11px;">{{ row.public_key.substring(0, 32) + '...' }}</code>
           </template>
         </el-table-column>
-        <el-table-column prop="endpoint" label="端点" width="160" />
-        <el-table-column label="AllowedIPs" width="160">
+        <el-table-column prop="endpoint" label="端点" width="160" class="hide-mobile" />
+        <el-table-column label="AllowedIPs" width="160" class="hide-mobile">
           <template #default="{ row }">{{ (row.allowed_ips || []).join(', ') }}</template>
         </el-table-column>
-        <el-table-column label="握手" width="80">
+        <el-table-column label="握手" width="80" class="hide-mobile">
           <template #default="{ row }">
             {{ row.latest_handshake > 0 ? formatTime(row.latest_handshake) : '-' }}
           </template>
         </el-table-column>
-        <el-table-column label="下载" width="80" align="right">
+        <el-table-column label="下载" width="80" align="right" class="hide-mobile">
           <template #default="{ row }">{{ formatBytes(row.transfer_rx) }}</template>
         </el-table-column>
-        <el-table-column label="上传" width="80" align="right">
+        <el-table-column label="上传" width="80" align="right" class="hide-mobile">
           <template #default="{ row }">{{ formatBytes(row.transfer_tx) }}</template>
         </el-table-column>
         <el-table-column label="操作" width="60">

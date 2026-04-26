@@ -47,9 +47,9 @@
             <el-table-column prop="destination" label="目标网络" width="160" />
             <el-table-column prop="gateway" label="网关" width="140" />
             <el-table-column prop="iface" label="接口" width="100" />
-            <el-table-column prop="metric" label="Metric" width="80" align="right" />
-            <el-table-column prop="proto" label="协议" width="80" />
-            <el-table-column label="默认" width="60">
+            <el-table-column prop="metric" label="Metric" width="80" align="right" class="hide-mobile" />
+            <el-table-column prop="proto" label="协议" width="80" class="hide-mobile" />
+            <el-table-column label="默认" width="60" class="hide-mobile">
               <template #default="{ row }">
                 <el-tag v-if="row.is_default" type="success" size="small">主</el-tag>
               </template>
