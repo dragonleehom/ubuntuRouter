@@ -138,25 +138,28 @@ def parse_onepanel_manifest(manifest_path: Path) -> Optional[AppManifest]:
     if not data or not isinstance(data, dict):
         return None
 
-    # 应用 ID 从目录名推导: app_relative_path 的最后一个部分
-    app_relative = manifest_path.relative_to(manifest_path.parent.parent.parent) if len(manifest_path.parent.parent.parents) > 1 else manifest_path.parent.name
-    app_id = manifest_path.parent.name
-
-    # 1Panel data.yml 结构与 AppManifest 互转
-    name = data.get("name", app_id)
+    # app_id 从 parent.parent 目录（即 app 目录名）获取
+    # 路径示例: /opt/ubunturouter/apps/repos/official/apps/nginx/1.0.0/data.yml
+    # app_id = nginx, version = 1.0.0
+    parent_name = manifest_path.parent.name  # version 目录
+    grandparent = manifest_path.parent.parent  # app 目录
+    app_id = grandparent.name if grandparent.exists() else parent_name
+    
+    name = data.get("title", data.get("name", app_id))
     description = data.get("description", "")
-    version = data.get("version", "0.0.0")
-    # 分类从目录结构中推断 (apps/{category}/...)
+    version = data.get("version", parent_name)
+    
+    # 分类: 从 data.yml 的 additionalProperties.type 中获取
     category = "其他"
-    try:
-        category_dir = manifest_path.parent.parent.parent.name
-        CATEGORY_MAP = {
-            "database": "数据库", "tool": "工具", "runtime": "运行环境",
-            "middleware": "中间件", "storage": "存储", "network": "网络",
-        }
-        category = CATEGORY_MAP.get(category_dir, category_dir)
-    except (IndexError, AttributeError):
-        pass
+    additional_props = data.get("additionalProperties", data.get("additional_properties", {}))
+    if isinstance(additional_props, dict):
+        category = additional_props.get("type", data.get("type", "其他"))
+    CATEGORY_MAP = {
+        "database": "数据库", "tool": "工具", "runtime": "运行环境",
+        "middleware": "中间件", "storage": "存储", "network": "网络",
+        "business": "商业软件", "website": "网站",
+    }
+    category = CATEGORY_MAP.get(category, category)
 
     # 图标: 1Panel 的 icon 字段或默认路径
     icon = data.get("icon", "")
