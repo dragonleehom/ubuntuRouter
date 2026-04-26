@@ -116,13 +116,32 @@ _generator_registry: Dict[str, 'BaseGenerator'] = {}
 
 
 def register_generator(generator_class: type) -> type:
-    """注册 Generator 类（延迟实例化，首次访问时创建实例）"""
-    # 创建一个工厂函数来实例化
+    """注册 Generator 类（延迟实例化，首次访问时创建实例）
+
+    实例化后自动订阅到 EventBus，当对应配置节变更时触发生成。
+    """
     section = generator_class.SECTION
 
     def get_instance() -> 'BaseGenerator':
         if section not in _generator_registry:
-            _generator_registry[section] = generator_class()
+            instance = generator_class()
+            _generator_registry[section] = instance
+            # 自动订阅到 EventBus
+            try:
+                from ubunturouter.engine.events import get_event_bus
+                from ubunturouter.config.models import UbunturouterConfig
+                bus = get_event_bus()
+                # 适配器：将 ConfigChangeEvent → 调用 generator.generate(config)
+                def event_listener(event):
+                    cfg_dict = event.new_config or {}
+                    config = UbunturouterConfig(**cfg_dict)
+                    return instance.generate(config)
+                bus.subscribe(section, event_listener, priority=100)
+                logger.info("Generator '%s' subscribed to section '%s'",
+                             instance.name, section)
+            except Exception as e:
+                logger.error("Failed to subscribe generator '%s': %s",
+                              generator_class.__name__, e)
             logger.info("Generator instantiated: %s -> section '%s'",
                          generator_class.__name__, section)
         return _generator_registry[section]

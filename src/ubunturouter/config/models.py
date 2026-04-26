@@ -309,6 +309,67 @@ class SystemConfig(BaseModel):
 
 
 # ═══════════════════════════════════════════════════════
+# PPPoE
+# ═══════════════════════════════════════════════════════
+
+class PPPoEConfig(BaseModel):
+    """PPPoE 拨号配置"""
+    enabled: bool = False
+    username: str = ""
+    password: str = ""
+    interface: str = "wan"
+    mtu: int = 1492
+    auto_reconnect: bool = True
+
+
+# ═══════════════════════════════════════════════════════
+# Samba
+# ═══════════════════════════════════════════════════════
+
+class SambaShareConfig(BaseModel):
+    """Samba 共享目录"""
+    name: str
+    path: str
+    writable: bool = True
+    guest_ok: bool = False
+    valid_users: str = ""
+    browsable: bool = True
+    enabled: bool = True
+
+
+class SambaConfig(BaseModel):
+    """Samba 服务配置"""
+    enabled: bool = False
+    workgroup: str = "WORKGROUP"
+    server_string: str = "UbuntuRouter"
+    shares: List[SambaShareConfig] = []
+
+
+# ═══════════════════════════════════════════════════════
+# DDNS
+# ═══════════════════════════════════════════════════════
+
+class DDNSRecordConfig(BaseModel):
+    """DDNS 记录"""
+    id: str = ""
+    type: str  # cloudflare, duckdns, alidns, dnspod
+    domain: str
+    subdomain: str = ""
+    ttl: int = 120
+    enabled: bool = True
+    # Provider-specific credentials
+    api_token: Optional[str] = None
+    api_key: Optional[str] = None
+    api_secret: Optional[str] = None
+
+
+class DDNSConfig(BaseModel):
+    """DDNS 配置"""
+    enabled: bool = False
+    records: List[DDNSRecordConfig] = []
+
+
+# ═══════════════════════════════════════════════════════
 # 顶级配置
 # ═══════════════════════════════════════════════════════
 
@@ -321,6 +382,9 @@ class UbunturouterConfig(BaseModel):
     routing: RoutingConfig = RoutingConfig()
     dhcp: Optional[DHCPPoolConfig] = None
     dns: Optional[DNSConfig] = None
+    pppoe: Optional[PPPoEConfig] = None
+    samba: Optional[SambaConfig] = None
+    ddns: Optional[DDNSConfig] = None
 
     class Config:
         extra = "forbid"  # 禁止未定义的字段

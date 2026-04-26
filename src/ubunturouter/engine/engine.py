@@ -11,8 +11,12 @@ from typing import List, Optional, Tuple
 
 import yaml
 
+import logging
+
 from ..config.models import UbunturouterConfig
 from ..config.serializer import ConfigSerializer
+
+logger = logging.getLogger(__name__)
 
 
 CONFIG_PATH = Path("/etc/ubunturouter/config.yaml")
@@ -181,7 +185,8 @@ class ConfigEngine:
         new_dict = new_config.model_dump(exclude_none=True)
 
         changed = []
-        for section in ['interfaces', 'firewall', 'routing', 'dhcp', 'dns', 'system']:
+        for section in ['interfaces', 'firewall', 'routing', 'dhcp', 'dns', 'system',
+                        'pppoe', 'samba', 'ddns']:
             old_val = old_dict.get(section)
             new_val = new_dict.get(section)
             if old_val != new_val:
@@ -336,7 +341,8 @@ class ConfigEngine:
                     )
             else:
                 # 首次配置
-                changed_sections = ["interfaces", "firewall", "routing", "dhcp", "dns", "system"]
+                changed_sections = ["interfaces", "firewall", "routing", "dhcp", "dns", "system",
+                                    "pppoe", "samba", "ddns"]
                 change_summary = "初始配置"
 
             # 3. 创建快照
