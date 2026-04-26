@@ -487,7 +487,7 @@ async function saveConfig() {
     }[editForm.protocol] || `修改 ${editForm.iface} 的配置`
 
     await ElMessageBox.confirm(
-      warningMsg,
+      warningMsg + '\n\n⚠️ netplan 将在 120 秒后自动回滚，配置正确后请点击确认。',
       '确认修改',
       {
         confirmButtonText: '确认',
@@ -512,6 +512,31 @@ async function saveConfig() {
     if (res.data.success) {
       ElMessage.success(res.data.message || '配置已应用')
       showEdit.value = false
+
+      // 弹出确认对话框
+      try {
+        await ElMessageBox.confirm(
+          '配置已通过 netplan try 应用。如果网络正常工作，请点击"确认"持久化配置。\n\n' +
+          '如果不操作，120 秒后 netplan 将自动回滚到之前的状态。',
+          '确认 netplan 配置',
+          {
+            confirmButtonText: '确认并持久化',
+            cancelButtonText: '取消（等待自动回滚）',
+            type: 'info',
+            distinguishCancelAndClose: true,
+          }
+        )
+        const confirmRes = await api.post('/interfaces/confirm')
+        if (confirmRes.data.success) {
+          ElMessage.success('netplan 配置已确认并持久化')
+        } else {
+          ElMessage.error(confirmRes.data.message || '确认失败')
+        }
+      } catch {
+        // 用户取消，netplan 将自动回滚
+        ElMessage.info('未确认，netplan 将在 120 秒后自动回滚')
+      }
+
       await fetchInterfaces()
     } else {
       ElMessage.error(res.data.message || '配置失败')
