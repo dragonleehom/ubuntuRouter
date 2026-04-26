@@ -77,6 +77,12 @@ export default [
         meta: { title: '定时重启' },
         component: () => import('@/views/SystemTimedRebootPlaceholder.vue'),
       },
+      {
+        path: 'upgrade',
+        name: 'SystemUpgrade',
+        meta: { title: '系统升级' },
+        component: () => import('@/views/SystemUpdate.vue'),
+      },
     ],
   },
 ]

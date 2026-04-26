@@ -128,6 +128,7 @@
           <el-menu-item index="/system/users">用户管理</el-menu-item>
           <el-menu-item index="/system/ssh-keys">SSH 密钥</el-menu-item>
           <el-menu-item index="/system/software">软件包</el-menu-item>
+          <el-menu-item index="/system/upgrade">系统升级</el-menu-item>
           <el-menu-item index="/system/startup">启动项</el-menu-item>
           <el-menu-item index="/system/scheduled-tasks">定时任务</el-menu-item>
           <el-menu-item index="/system/led">LED 配置</el-menu-item>
