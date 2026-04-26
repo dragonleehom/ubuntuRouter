@@ -63,7 +63,7 @@
 
         <!-- 端口速率指示 -->
         <div class="port-speed-indicator">
-          <div class="speed-ring" :class="{ active: p.state === 'UP' }">
+          <div class="speed-ring" :class="{ active: p.state === 'UP', flashing: isFlashing(p.name) }">
             <template v-if="p.speed">
               <span class="speed-value">{{ p.speed }}</span>
               <span class="speed-unit">Mbps</span>
@@ -183,13 +183,10 @@
 
         <!-- 速率指示（虚拟接口不显示速率环，显示类型图标） -->
         <div class="port-speed-indicator">
-          <div class="speed-ring virtual-ring" :class="{ active: p.state === 'UP' }">
+          <div class="speed-ring virtual-ring" :class="{ active: p.state === 'UP', flashing: isFlashing(p.name) }">
             <span class="speed-icon">
               <el-icon :size="26">
-                <template v-if="p.role === 'docker' || p.name.startsWith('docker')">Wallet</template>
-                <template v-else-if="p.role === 'container' || p.name.startsWith('veth')">Connection</template>
-                <template v-else-if="p.role === 'wan' || p.name.startsWith('ppp')">Link</template>
-                <template v-else>FolderOpened</template>
+                <component :is="getVirtualIcon(p)" />
               </el-icon>
             </span>
             <span class="speed-unit">{{ p.type }}</span>
@@ -461,7 +458,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '@/stores'
 import {
@@ -476,6 +473,9 @@ const showEdit = ref(false)
 const saving = ref(false)
 const showPortDrawer = ref(false)
 const portDetail = ref(null)
+const trafficData = ref({})      // 流量缓存 { ifname: { rx_bytes, tx_bytes } }
+const flashingIfaces = ref({})   // 闪烁状态 { ifname: true/false }
+let trafficTimer = null          // setInterval 句柄
 
 const editForm = reactive({
   iface: '',
@@ -499,6 +499,42 @@ const physicalPorts = computed(() => {
 const virtualPorts = computed(() => {
   return interfaces.value.filter(i => i.type !== 'physical')
 })
+
+// 虚拟接口图标
+function getVirtualIcon(p) {
+  if (p.role === 'docker' || p.name.startsWith('docker')) return 'Wallet'
+  if (p.role === 'container' || p.name.startsWith('veth')) return 'Connection'
+  if (p.role === 'wan' || p.name.startsWith('ppp')) return 'Link'
+  return 'FolderOpened'
+}
+
+// 判断接口是否有数据流闪烁
+function isFlashing(ifname) {
+  return flashingIfaces.value[ifname] || false
+}
+
+// 轮询流量
+async function pollTraffic() {
+  try {
+    const res = await api.get('/interfaces/traffic')
+    const current = res.data.traffic || {}
+    const changed = {}
+
+    for (const [name, stats] of Object.entries(current)) {
+      const prev = trafficData.value[name]
+      if (prev) {
+        const rxDiff = stats.rx_packets - (prev.rx_packets || 0)
+        const txDiff = stats.tx_packets - (prev.tx_packets || 0)
+        changed[name] = rxDiff > 0 || txDiff > 0
+      }
+    }
+
+    trafficData.value = current
+    flashingIfaces.value = changed
+  } catch {
+    // 静默
+  }
+}
 
 async function refreshAll() {
   refreshing.value = true
@@ -648,7 +684,16 @@ async function saveConfig() {
   saving.value = false
 }
 
-onMounted(fetchInterfaces)
+onMounted(() => {
+  fetchInterfaces()
+  // 启动流量轮询（1秒间隔，纯读 /proc/net/dev 无资源开销）
+  trafficTimer = setInterval(pollTraffic, 1000)
+})
+
+onUnmounted(() => {
+  if (trafficTimer) clearInterval(trafficTimer)
+})
+
 </script>
 
 <style scoped>
@@ -812,6 +857,13 @@ onMounted(fetchInterfaces)
   border-color: #0052FF;
   background: rgba(0,82,255,0.06);
   box-shadow: 0 0 16px rgba(0,82,255,0.15);
+}
+.speed-ring.flashing {
+  animation: pulse-glow 0.6s ease-in-out;
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(0,82,255,0.1); }
+  50% { box-shadow: 0 0 24px rgba(0,82,255,0.5), 0 0 40px rgba(0,82,255,0.2); }
 }
 .speed-icon {
   display: flex;

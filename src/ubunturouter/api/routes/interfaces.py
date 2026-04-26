@@ -3,6 +3,7 @@
 import subprocess
 import json
 import re
+import time
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -485,6 +486,34 @@ def _get_iface_speed(name: str) -> Optional[int]:
         except Exception:
             return None
     return None
+
+
+@router.get("/traffic")
+async def get_traffic(auth=Depends(require_auth)):
+    """
+    获取所有接口的实时流量统计（纯 /proc/net/dev 读取，零网络开销）
+    用于前端闪烁动画
+    """
+    result = {}
+    try:
+        with open("/proc/net/dev", "r") as f:
+            lines = f.readlines()
+        # 跳过标题行
+        for line in lines[2:]:
+            parts = line.strip().split(":")
+            if len(parts) == 2:
+                ifname = parts[0].strip()
+                stats = parts[1].strip().split()
+                if len(stats) >= 10:
+                    result[ifname] = {
+                        "rx_bytes": int(stats[0]),
+                        "rx_packets": int(stats[1]),
+                        "tx_bytes": int(stats[8]),
+                        "tx_packets": int(stats[9]),
+                    }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"traffic": result, "ts": time.time()}
 
 
 def _load_firewall_zones() -> dict:
