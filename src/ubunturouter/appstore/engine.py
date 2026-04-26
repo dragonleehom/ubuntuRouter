@@ -13,9 +13,20 @@ APPS_BASE = Path("/opt/ubunturouter/apps")
 REPOS_DIR = APPS_BASE / "repos"
 INSTALLED_DIR = APPS_BASE / "installed"
 DATA_DIR = APPS_BASE / "data"
-OFFICIAL_REPO = "https://github.com/1Panel-dev/appstore"
-# 1Panel 兼容模式: 使用 data.yml 替代 app.yaml
-ONEPANEL_MODE = True
+OFFICIAL_REPO = "https://github.com/ubuntu-router/apps-official"
+
+# ─── 支持的仓库格式 ────────────────────────────────────────────────────────────
+# 每种格式对应一组解析器和目录探测器
+REPO_FORMATS = {
+    "self": {
+        "label": "自建格式 (app.yaml)",
+        "manifest_file": "app.yaml",
+    },
+    "1panel": {
+        "label": "1Panel 格式 (data.yml)",
+        "manifest_file": "data.yml",
+    },
+}
 
 
 @dataclass
@@ -49,9 +60,14 @@ class AppManifest:
     installed: bool = False        # 是否已安装
     installed_version: str = ""    # 已安装版本
 
+    @property
+    def format(self) -> str:
+        """推断来源格式"""
+        return ""
+
 
 def parse_manifest(manifest_path: Path) -> Optional[AppManifest]:
-    """解析 app.yaml 文件"""
+    """解析 app.yaml 文件（自建格式）"""
     if not manifest_path.exists():
         return None
 
@@ -76,7 +92,7 @@ def parse_manifest(manifest_path: Path) -> Optional[AppManifest]:
                 "description": ev.get("description", ""),
                 "default": ev.get("default", ""),
                 "required": ev.get("required", False),
-                "type": ev.get("type", "string"),  # string / password / number / boolean
+                "type": ev.get("type", "string"),
             })
 
     # 解析 ports
@@ -122,13 +138,82 @@ def parse_manifest(manifest_path: Path) -> Optional[AppManifest]:
     )
 
 
+def _extract_ports_from_compose(compose_path: Path) -> List[Dict]:
+    """从 docker-compose.yml 提取端口映射"""
+    ports = []
+    if not compose_path.exists():
+        return ports
+    try:
+        with open(compose_path, "r", encoding="utf-8") as cf:
+            compose_data = yaml.safe_load(cf)
+        services = compose_data.get("services", {})
+        for svc_name, svc_cfg in services.items():
+            svc_ports = svc_cfg.get("ports", [])
+            for p in svc_ports:
+                if isinstance(p, str):
+                    m = re.match(r"(\d+):(\d+)(?:/(\w+))?", p)
+                    if m:
+                        ports.append({
+                            "container_port": int(m.group(2)),
+                            "host_port": int(m.group(1)),
+                            "protocol": m.group(3) or "tcp",
+                            "label": f"{svc_name}:{m.group(2)}",
+                        })
+                elif isinstance(p, dict):
+                    ports.append({
+                        "container_port": p.get("target", 0),
+                        "host_port": p.get("published", 0),
+                        "protocol": p.get("protocol", "tcp"),
+                        "label": f"{svc_name}:{p.get('target', 0)}",
+                    })
+    except Exception:
+        pass
+    return ports
+
+
+def _extract_volumes_from_compose(compose_path: Path) -> List[Dict]:
+    """从 docker-compose.yml 提取数据卷"""
+    volumes = []
+    if not compose_path.exists():
+        return volumes
+    try:
+        with open(compose_path, "r", encoding="utf-8") as cf:
+            compose_data = yaml.safe_load(cf)
+        services = compose_data.get("services", {})
+        for svc_name, svc_cfg in services.items():
+            svc_volumes = svc_cfg.get("volumes", [])
+            for vol in svc_volumes:
+                if isinstance(vol, str):
+                    parts = vol.split(":")
+                    if len(parts) >= 2:
+                        volumes.append({
+                            "container_path": parts[1],
+                            "host_path": parts[0],
+                            "label": f"{svc_name}:{parts[1]}",
+                        })
+                elif isinstance(vol, dict):
+                    volumes.append({
+                        "container_path": vol.get("target", ""),
+                        "host_path": vol.get("source", ""),
+                        "label": f"{svc_name}:{vol.get('target', '')}",
+                    })
+    except Exception:
+        pass
+    return volumes
+
+
+_CATEGORY_I18N = {
+    "database": "数据库", "tool": "工具", "runtime": "运行环境",
+    "middleware": "中间件", "storage": "存储", "network": "网络",
+    "business": "商业软件", "website": "网站",
+}
+
+
 def parse_onepanel_manifest(manifest_path: Path) -> Optional[AppManifest]:
     """解析 1Panel 应用 data.yml 格式"""
     if not manifest_path.exists():
         return None
 
-    # 1Panel 目录结构: apps/{category}/{app_name}/{version}/data.yml
-    # data.yml 包含: additionalProperties, docker-compose 等
     try:
         with open(manifest_path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
@@ -138,79 +223,36 @@ def parse_onepanel_manifest(manifest_path: Path) -> Optional[AppManifest]:
     if not data or not isinstance(data, dict):
         return None
 
-    # app_id 从 parent.parent 目录（即 app 目录名）获取
-    # 路径示例: /opt/ubunturouter/apps/repos/official/apps/nginx/1.0.0/data.yml
-    # app_id = nginx, version = 1.0.0
-    parent_name = manifest_path.parent.name  # version 目录
-    grandparent = manifest_path.parent.parent  # app 目录
+    # 路径: .../apps/{app_name}/{version}/data.yml
+    parent_name = manifest_path.parent.name      # version 目录
+    grandparent = manifest_path.parent.parent     # app 目录
     app_id = grandparent.name if grandparent.exists() else parent_name
-    
+
     name = data.get("title", data.get("name", app_id))
     description = data.get("description", "")
     version = data.get("version", parent_name)
-    
-    # 分类: 从 data.yml 的 additionalProperties.type 中获取
-    category = "其他"
+
+    # 分类
     additional_props = data.get("additionalProperties", data.get("additional_properties", {}))
+    category = "其他"
     if isinstance(additional_props, dict):
         category = additional_props.get("type", data.get("type", "其他"))
-    CATEGORY_MAP = {
-        "database": "数据库", "tool": "工具", "runtime": "运行环境",
-        "middleware": "中间件", "storage": "存储", "network": "网络",
-        "business": "商业软件", "website": "网站",
-    }
-    category = CATEGORY_MAP.get(category, category)
+    category = _CATEGORY_I18N.get(category, category)
 
-    # 图标: 1Panel 的 icon 字段或默认路径
     icon = data.get("icon", "")
     if icon and not icon.startswith("http"):
         icon = ""
-
-    # 主页
     homepage = data.get("website", "")
     author = data.get("author", "")
     tags = data.get("tags", [])
 
-    # 其他自定义属性
-    additional_props = data.get("additionalProperties", data.get("additional_properties", {}))
-
-    # 端口探查 (从 docker-compose 提取)
-    ports = []
     compose_path = manifest_path.parent / "docker-compose.yml"
-    if compose_path.exists():
-        try:
-            with open(compose_path, "r", encoding="utf-8") as cf:
-                compose_data = yaml.safe_load(cf)
-            services = compose_data.get("services", {})
-            for svc_name, svc_cfg in services.items():
-                svc_ports = svc_cfg.get("ports", [])
-                for p in svc_ports:
-                    if isinstance(p, str):
-                        # "8080:80/tcp" 格式
-                        import re as _re
-                        m = _re.match(r"(\d+):(\d+)(?:/(\w+))?", p)
-                        if m:
-                            ports.append({
-                                "container_port": int(m.group(2)),
-                                "host_port": int(m.group(1)),
-                                "protocol": m.group(3) or "tcp",
-                                "label": f"{svc_name}:{m.group(2)}",
-                            })
-                    elif isinstance(p, dict):
-                        ports.append({
-                            "container_port": p.get("target", 0),
-                            "host_port": p.get("published", 0),
-                            "protocol": p.get("protocol", "tcp"),
-                            "label": f"{svc_name}:{p.get('target', 0)}",
-                        })
-        except Exception:
-            pass
+    ports = _extract_ports_from_compose(compose_path)
 
-    # 环境变量 (从 additionalProperties 的 form 中提取)
+    # 环境变量
     env_vars = []
     if isinstance(additional_props, dict):
-        form_fields = additional_props.get("formFields", [])
-        for field in form_fields:
+        for field in additional_props.get("formFields", []):
             if isinstance(field, dict):
                 field_type = field.get("type", "input")
                 env_vars.append({
@@ -220,41 +262,13 @@ def parse_onepanel_manifest(manifest_path: Path) -> Optional[AppManifest]:
                     "default": field.get("default", ""),
                     "required": field.get("required", False),
                     "type": {
-                        "password": "password",
-                        "number": "number",
-                        "checkbox": "boolean",
-                        "switch": "boolean",
-                        "select": "select",
+                        "password": "password", "number": "number",
+                        "checkbox": "boolean", "switch": "boolean", "select": "select",
                     }.get(field_type, "string"),
                     "options": field.get("options", field.get("children", [])),
                 })
 
-    # 数据卷 (从 docker-compose volumes 提取)
-    volumes = []
-    if compose_path.exists():
-        try:
-            with open(compose_path, "r", encoding="utf-8") as cf:
-                compose_data = yaml.safe_load(cf)
-            services = compose_data.get("services", {})
-            for svc_name, svc_cfg in services.items():
-                svc_volumes = svc_cfg.get("volumes", [])
-                for vol in svc_volumes:
-                    if isinstance(vol, str):
-                        parts = vol.split(":")
-                        if len(parts) >= 2:
-                            volumes.append({
-                                "container_path": parts[1],
-                                "host_path": parts[0],
-                                "label": f"{svc_name}:{parts[1]}",
-                            })
-                    elif isinstance(vol, dict):
-                        volumes.append({
-                            "container_path": vol.get("target", ""),
-                            "host_path": vol.get("source", ""),
-                            "label": f"{svc_name}:{vol.get('target', '')}",
-                        })
-        except Exception:
-            pass
+    volumes = _extract_volumes_from_compose(compose_path)
 
     return AppManifest(
         id=app_id,
@@ -273,78 +287,103 @@ def parse_onepanel_manifest(manifest_path: Path) -> Optional[AppManifest]:
     )
 
 
-def scan_apps(repo_path: Path) -> Dict[str, AppManifest]:
-    """扫描仓库目录, 返回 {app_id: AppManifest}
+# ═══════════════════════════════════════════════════════════════════════════
+# 格式探测器：检测仓库使用的是哪种格式
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _detect_repo_format(repo_path: Path) -> Optional[str]:
+    """自动检测仓库格式
     
-    支持两种格式:
-    - app.yaml (自建格式)
-    - data.yml (1Panel 格式, 路径: {repo}/{category}/{app}/{version}/data.yml)
+    返回值: 'self', '1panel', 或 None（未识别）
     """
+    if not repo_path.exists():
+        return None
+
+    # 自建格式: 根目录有子目录含 app.yaml
+    for item in repo_path.iterdir():
+        if item.is_dir() and not item.name.startswith("."):
+            if (item / "app.yaml").exists():
+                return "self"
+
+    # 1Panel 格式: apps/{app_name}/{version}/data.yml
+    apps_dir = repo_path / "apps" if repo_path.name != "apps" else repo_path
+    if apps_dir.exists() and apps_dir.is_dir():
+        for app in apps_dir.iterdir():
+            if app.is_dir() and not app.name.startswith("."):
+                for item in app.iterdir():
+                    if item.is_dir() and (item / "data.yml").exists():
+                        return "1panel"
+                    if item.name == "data.yml":
+                        return "1panel"
+
+    return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 扫描器：根据格式选择解析策略
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _scan_self_format(repo_path: Path) -> Dict[str, AppManifest]:
+    """扫描自建格式仓库 (app.yaml)"""
+    apps = {}
+    for item in sorted(repo_path.iterdir()):
+        if not item.is_dir() or item.name.startswith("."):
+            continue
+        manifest_file = item / "app.yaml"
+        if not manifest_file.exists():
+            continue
+        manifest = parse_manifest(manifest_file)
+        if manifest:
+            manifest.repo = repo_path.name
+            manifest.path = str(item)
+            apps[manifest.id] = manifest
+    return apps
+
+
+def _scan_onepanel_format(repo_path: Path) -> Dict[str, AppManifest]:
+    """扫描 1Panel 格式仓库 (data.yml)"""
+    apps = {}
+    apps_dir = repo_path / "apps" if repo_path.name != "apps" else repo_path
+    for app_dir in sorted(apps_dir.iterdir()):
+        if not app_dir.is_dir() or app_dir.name.startswith("."):
+            continue
+        # 取最新版本目录
+        versions = sorted([
+            d for d in app_dir.iterdir()
+            if d.is_dir() and not d.name.startswith(".")
+        ], reverse=True)
+        if versions:
+            manifest_file = versions[0] / "data.yml"
+        else:
+            manifest_file = app_dir / "data.yml"
+        if manifest_file.exists():
+            manifest = parse_onepanel_manifest(manifest_file)
+            if manifest:
+                manifest.repo = repo_path.name
+                manifest.path = str(manifest_file.parent)
+                apps[manifest.id] = manifest
+    return apps
+
+
+_FORMAT_SCANNERS = {
+    "self": _scan_self_format,
+    "1panel": _scan_onepanel_format,
+}
+
+
+def scan_apps(repo_path: Path) -> Dict[str, AppManifest]:
+    """扫描仓库目录, 自动检测格式并返回应用字典"""
     apps = {}
     if not repo_path.exists():
         return apps
 
-    # 检测是否为 1Panel 仓库 (apps/{category}/{app}/{version}/data.yml 结构)
-    is_onepanel = _detect_onepanel_repo(repo_path)
-
-    if is_onepanel:
-        # 1Panel 格式: apps/{app_name}/{version}/data.yml 或 apps/{app_name}/data.yml
-        apps_dir = repo_path / "apps" if repo_path.name != "apps" else repo_path
-        for app_dir in sorted(apps_dir.iterdir()):
-            if not app_dir.is_dir() or app_dir.name.startswith("."):
-                continue
-            # 取最新版本: 有 version 子目录则取最后一个，否则取 data.yml
-            versions = sorted([
-                d for d in app_dir.iterdir()
-                if d.is_dir() and not d.name.startswith(".")
-            ], reverse=True)
-            if versions:
-                latest = versions[0]
-                manifest_file = latest / "data.yml"
-            else:
-                # 无版本子目录，直接在 app 目录下
-                manifest_file = app_dir / "data.yml"
-            if manifest_file.exists():
-                manifest = parse_onepanel_manifest(manifest_file)
-                if manifest:
-                    manifest.repo = repo_path.name
-                    manifest.path = str(manifest_file.parent)
-                    apps[manifest.id] = manifest
-    else:
-        # 自建格式: {app_name}/app.yaml
-        for item in sorted(repo_path.iterdir()):
-            if not item.is_dir() or item.name.startswith("."):
-                continue
-            manifest_file = item / "app.yaml"
-            if not manifest_file.exists():
-                continue
-            manifest = parse_manifest(manifest_file)
-            if manifest:
-                manifest.repo = repo_path.name
-                manifest.path = str(item)
-                apps[manifest.id] = manifest
+    fmt = _detect_repo_format(repo_path)
+    scanner = _FORMAT_SCANNERS.get(fmt) if fmt else None
+    if scanner:
+        apps = scanner(repo_path)
+    # fmt 为 None 时返回空字典
 
     return apps
-
-
-def _detect_onepanel_repo(repo_path: Path) -> bool:
-    """检测是否为 1Panel 格式仓库"""
-    if not repo_path.exists():
-        return False
-    # 1Panel 仓库结构: apps/{app_name}/{version}/data.yml 或 apps/{app_name}/data.yml
-    apps_dir = repo_path / "apps" if repo_path.name != "apps" else repo_path
-    if not apps_dir.exists() or not apps_dir.is_dir():
-        return False
-    for app in apps_dir.iterdir():
-        if app.is_dir() and not app.name.startswith("."):
-            # 检查 {app}/{version}/data.yml 或 {app}/data.yml
-            for item in app.iterdir():
-                if item.is_dir():
-                    if (item / "data.yml").exists():
-                        return True
-                elif item.name == "data.yml":
-                    return True
-    return False
 
 
 def scan_all_repos() -> Dict[str, AppManifest]:
@@ -359,7 +398,6 @@ def scan_all_repos() -> Dict[str, AppManifest]:
         apps = scan_apps(repo_dir)
         for app_id, manifest in apps.items():
             if app_id in all_apps:
-                # 同名冲突: 按仓库优先级覆盖
                 continue
             all_apps[app_id] = manifest
 
@@ -375,7 +413,6 @@ def get_installed_apps() -> Dict[str, str]:
     for item in INSTALLED_DIR.iterdir():
         if not item.is_symlink() and not item.is_dir():
             continue
-        # 读取 manifest 获取版本
         manifest_file = item / "app.yaml"
         if manifest_file.exists():
             manifest = parse_manifest(manifest_file)

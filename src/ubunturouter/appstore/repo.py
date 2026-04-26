@@ -21,6 +21,7 @@ class RepoInfo:
     last_sync: str = ""
     status: str = "unknown"  # unknown / syncing / ok / error
     app_count: int = 0
+    format: str = "auto"     # auto / self / 1panel / openwrt
 
 
 def _git_run(cmd: list, cwd: Path, timeout: int = 120) -> dict:
@@ -42,8 +43,57 @@ def _git_run(cmd: list, cwd: Path, timeout: int = 120) -> dict:
         return {"success": False, "stdout": "", "stderr": "git not found"}
 
 
+def verify_repo_compatibility(repo_path: Path) -> dict:
+    """验证仓库与应用商店兼容性
+    
+    检查：
+    1. 仓库格式是否可识别 (self/1panel)
+    2. 应用是否能在 Ubuntu Linux 上运行
+    3. 至少有一个 docker-compose 应用
+    """
+    from .engine import _detect_repo_format
+
+    if not repo_path.exists():
+        return {"compatible": False, "reason": "仓库目录不存在"}
+
+    fmt = _detect_repo_format(repo_path)
+    if not fmt:
+        return {"compatible": False, "reason": "无法识别仓库格式（未找到 app.yaml 或 data.yml）"}
+
+    # 检查是否基于 Docker（即包含 docker-compose.yml）
+    # 所有 UbuntuRouter 应用都通过 Docker 部署，这是兼容性前提
+    compose_count = 0
+    if fmt == "self":
+        for item in repo_path.iterdir():
+            if item.is_dir() and (item / "docker-compose.yml").exists():
+                compose_count += 1
+    elif fmt == "1panel":
+        apps_dir = repo_path / "apps" if repo_path.name != "apps" else repo_path
+        if not apps_dir.exists():
+            return {"compatible": False, "reason": "仓库缺少 apps/ 目录"}
+        for app_dir in apps_dir.iterdir():
+            if app_dir.is_dir() and not app_dir.name.startswith("."):
+                for item in app_dir.iterdir():
+                    if item.is_dir() and (item / "docker-compose.yml").exists():
+                        compose_count += 1
+                        break
+                    if item.name == "docker-compose.yml":
+                        compose_count += 1
+                        break
+
+    if compose_count == 0:
+        return {"compatible": False, "reason": "仓库中没有 Docker Compose 应用（UbuntuRouter 需要 Docker 部署）"}
+
+    return {
+        "compatible": True,
+        "format": fmt,
+        "app_count": compose_count,
+        "message": f"仓库兼容，识别为 {fmt} 格式，包含 {compose_count} 个 Docker 应用",
+    }
+
+
 def add_repo(name: str, url: str, branch: str = "main") -> dict:
-    """添加第三方仓库"""
+    """添加第三方仓库（包含兼容性验证）"""
     repo_path = REPOS_DIR / name
     if repo_path.exists():
         return {"success": False, "error": f"仓库 '{name}' 已存在"}
@@ -55,18 +105,28 @@ def add_repo(name: str, url: str, branch: str = "main") -> dict:
         REPOS_DIR, timeout=300
     )
 
-    # 检查 1Panel 仓库: 克隆后检查是否有 apps/ 子目录
-    # 1Panel-appstore 克隆下来结构: {repo}/apps/{category}/{app}/{version}/data.yml
-    # 所以 repo_path 就是 REPOS_DIR / name 本身
     if not result["success"]:
-        return result
+        return {
+            "success": False,
+            "error": f"克隆失败: {result.get('stderr', '')[:200]}",
+        }
+
+    # 兼容性验证
+    compat = verify_repo_compatibility(repo_path)
+    if not compat["compatible"]:
+        # 清理已克隆的目录
+        import shutil
+        shutil.rmtree(repo_path)
+        return {"success": False, "error": f"仓库不兼容: {compat['reason']}"}
 
     return {
         "success": result["success"],
         "name": name,
         "url": url,
         "path": str(repo_path),
-        "error": result.get("stderr", "") if not result["success"] else "",
+        "format": compat["format"],
+        "app_count": compat["app_count"],
+        "error": "",
     }
 
 
