@@ -28,8 +28,8 @@ class PPPoEManager:
 
     def __init__(self):
         self._config_path = CONFIG_PATH
-        self._peers_path = PPPEERS_DIR / PROVIDER_NAME
-        self._peers_backup_path = PPPEERS_DIR / f"{PROVIDER_NAME}.bak"
+        self._peers_path = PPP_PEERS_DIR / PROVIDER_NAME
+        self._peers_backup_path = PPP_PEERS_DIR / f"{PROVIDER_NAME}.bak"
 
     # ─── Configuration I/O ────────────────────────────────────────
 
