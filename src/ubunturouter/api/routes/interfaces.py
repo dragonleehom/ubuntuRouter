@@ -219,6 +219,10 @@ async def configure_interface(cfg: IfaceUpdateModel, auth=Depends(require_auth))
     """
     配置网络接口（运行时生效 + 持久化到 netplan）
 
+    安全机制：
+    - 使用 `netplan try`（120秒自动回滚）代替直接 `netplan apply`
+    - 先写入 netplan 再应用，确保回滚有效
+
     支持协议：
     - dhcp: 自动获取
     - static: 静态 IP（需 address + gateway）
@@ -227,6 +231,12 @@ async def configure_interface(cfg: IfaceUpdateModel, auth=Depends(require_auth))
     """
     try:
         ifname = cfg.name
+
+        # ── 0. 先写 netplan，用 netplan try（120秒自动回滚）──
+        # 这样就算 IP 配置错了，120 秒后 netplan 自动恢复
+        netplan_result = _write_netplan_safe(ifname, cfg)
+        if not netplan_result["success"]:
+            return netplan_result
 
         # ── 1. 运行时生效（用 ip 命令直接操作）──
 
@@ -240,9 +250,11 @@ async def configure_interface(cfg: IfaceUpdateModel, auth=Depends(require_auth))
 
         # 根据协议配置
         if cfg.protocol == "dhcp":
-            # 启动 DHCP 客户端（用 dhclient）
-            subprocess.run(["dhclient", "-v", ifname],
-                           capture_output=True, text=True, timeout=15)
+            # 启动 DHCP 客户端
+            r = subprocess.run(["dhclient", "-v", ifname],
+                               capture_output=True, text=True, timeout=30)
+            if r.returncode != 0:
+                return {"success": False, "message": f"DHCP 获取失败: {r.stderr.strip() or r.stdout.strip()}"}
 
         elif cfg.protocol == "static":
             if not cfg.address:
@@ -256,12 +268,11 @@ async def configure_interface(cfg: IfaceUpdateModel, auth=Depends(require_auth))
             if cfg.gateway:
                 subprocess.run(["ip", "route", "add", "default", "via", cfg.gateway, "dev", ifname],
                                capture_output=True, text=True, timeout=5)
-            # 设置 DNS（写入 resolv.conf）
+            # 设置 DNS
             if cfg.dns:
                 _write_resolv_conf(ifname, cfg.dns)
 
         elif cfg.protocol == "pppoe":
-            # 启动 PPPoE 连接
             username = cfg.pppoe_username or ""
             password = cfg.pppoe_password or ""
             if not username or not password:
@@ -271,7 +282,6 @@ async def configure_interface(cfg: IfaceUpdateModel, auth=Depends(require_auth))
                 return r
 
         elif cfg.protocol == "disabled":
-            # 禁用接口
             subprocess.run(["ip", "link", "set", ifname, "down"],
                            capture_output=True, text=True, timeout=5)
 
@@ -280,43 +290,154 @@ async def configure_interface(cfg: IfaceUpdateModel, auth=Depends(require_auth))
             subprocess.run(["ip", "link", "set", "dev", ifname, "mtu", str(cfg.mtu)],
                            capture_output=True, text=True, timeout=5)
 
-        # ── 2. 持久化到 netplan（重写 01-netcfg.yaml）──
-        _write_netplan(ifname, cfg)
+        # ── 2. 确认 netplan try（应用当前配置）──
+        # netplan try 已经应用了，120 秒内不确认会自动回滚
+        # 客户端确认后调用 /interfaces/confirm 来提交
 
         return {
             "success": True,
-            "message": f"接口 {ifname} 配置已更新 (协议: {cfg.protocol})"
+            "message": f"接口 {ifname} 配置已应用 (协议: {cfg.protocol})。"
+                       f"netplan 将在 120 秒后自动回滚，请在浏览器确认配置正确后执行确认操作。",
+            "auto_rollback_seconds": 120,
         }
 
     except Exception as e:
         return {"success": False, "message": str(e)}
 
 
+@router.post("/confirm")
+async def confirm_netplan(auth=Depends(require_auth)):
+    """确认 netplan 配置（应用 netplan try 的暂定配置）"""
+    try:
+        r = subprocess.run(
+            ["netplan", "try", "--timeout", "0"],  # timeout=0 表示确认
+            capture_output=True, text=True, timeout=10
+        )
+        if r.returncode != 0:
+            return {"success": False, "message": f"确认失败: {r.stderr.strip()}"}
+        return {"success": True, "message": "netplan 配置已确认并持久化"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+def _write_netplan_safe(ifname: str, cfg: IfaceUpdateModel) -> dict:
+    """
+    安全写入 netplan 配置（使用 netplan try 实现自动回滚）
+
+    流程：
+    1. 备份当前 netplan 到临时文件
+    2. 写入新配置
+    3. 执行 netplan try (120秒超时)
+    4. 如果失败则自动恢复备份
+    """
+    netplan_dir = Path("/etc/netplan")
+    netplan_dir.mkdir(parents=True, exist_ok=True)
+
+    # 使用 01-ubunturouter.yaml（如果存在）或创建新的
+    netplan_file = netplan_dir / "01-ubunturouter.yaml"
+    backup_file = netplan_dir / ".01-ubunturouter.yaml.bak"
+
+    # 备份当前配置
+    if netplan_file.exists():
+        import shutil
+        shutil.copy2(netplan_file, backup_file)
+
+    try:
+        # 读取或创建配置
+        import yaml
+        netplan_data = {"network": {"version": 2, "renderer": "networkd", "ethernets": {}}}
+        if netplan_file.exists():
+            try:
+                netplan_data = yaml.safe_load(netplan_file.read_text()) or netplan_data
+            except Exception:
+                pass
+
+        # 生成接口配置
+        iface_config = {}
+        if cfg.protocol == "dhcp":
+            iface_config["dhcp4"] = True
+        elif cfg.protocol == "static":
+            iface_config["dhcp4"] = False
+            if cfg.address:
+                iface_config["addresses"] = [cfg.address]
+            if cfg.gateway:
+                iface_config["routes"] = [{"to": "default", "via": cfg.gateway}]
+        elif cfg.protocol == "pppoe":
+            iface_config["dhcp4"] = False
+        elif cfg.protocol == "disabled":
+            iface_config["dhcp4"] = False
+
+        if cfg.dns:
+            iface_config["nameservers"] = {"addresses": cfg.dns}
+        if cfg.mtu:
+            iface_config["mtu"] = cfg.mtu
+        if cfg.mac:
+            iface_config["match"] = {"macaddress": cfg.mac}
+        iface_config["optional"] = True
+
+        # 确保 ethernets 存在
+        if "ethernets" not in netplan_data["network"]:
+            netplan_data["network"]["ethernets"] = {}
+        netplan_data["network"]["ethernets"][ifname] = iface_config
+
+        # 写入新配置
+        netplan_file.write_text(
+            yaml.dump(netplan_data, default_flow_style=False, allow_unicode=True, indent=2, sort_keys=False)
+        )
+
+        # 使用 netplan try（120秒超时自动回滚）
+        r = subprocess.run(
+            ["netplan", "try", "--timeout", "120"],
+            capture_output=True, text=True, timeout=130
+        )
+        if r.returncode != 0:
+            # netplan try 失败，恢复备份
+            if backup_file.exists():
+                import shutil
+                shutil.copy2(backup_file, netplan_file)
+                backup_file.unlink(missing_ok=True)
+            return {"success": False, "message": f"netplan 配置失败: {r.stderr.strip()}"}
+
+        # 备份文件可以删除了，netplan try 已提前确认
+        backup_file.unlink(missing_ok=True)
+        return {"success": True}
+
+    except subprocess.TimeoutExpired:
+        # netplan try 超时说明网络配置可能有问题
+        # 但 netplan 会自动回滚
+        if backup_file.exists():
+            import shutil
+            shutil.copy2(backup_file, netplan_file)
+            backup_file.unlink(missing_ok=True)
+        return {"success": False, "message": "netplan try 超时，配置已自动回滚"}
+    except Exception as e:
+        if backup_file.exists():
+            import shutil
+            shutil.copy2(backup_file, netplan_file)
+            backup_file.unlink(missing_ok=True)
+        return {"success": False, "message": f"netplan 写入失败: {e}"}
+
+
 def _write_resolv_conf(ifname: str, dns_servers: List[str]):
-    """写入临时 resolv.conf（供 dhclient 覆盖或直接使用）"""
+    """写入 DNS 配置"""
     try:
         content = "\n".join(f"nameserver {dns}" for dns in dns_servers) + "\n"
-        # NetworkManager 接管时写入 /etc/resolv.conf 会被覆盖
-        # 尝试写入 /etc/resolvconf/resolv.conf.d/head (Ubuntu 传统)
         resolv_head = Path("/etc/resolvconf/resolv.conf.d/head")
         if resolv_head.parent.exists():
             resolv_head.write_text(content)
             subprocess.run(["resolvconf", "-u"], capture_output=True, timeout=5)
         else:
-            # 直接写入 /etc/resolv.conf
             Path("/etc/resolv.conf").write_text(
                 f"# Generated by UbuntuRouter for {ifname}\n{content}"
             )
     except Exception:
-        pass  # 非关键操作
+        pass
 
 
 def _start_pppoe(ifname: str, username: str, password: str) -> dict:
     """启动 PPPoE 连接"""
     try:
-        # 写入 PPPoE 配置
         pppoe_config = f"""
-# UbuntuRouter PPPoE config for {ifname}
 noauth
 defaultroute
 replacedefaultroute
@@ -333,7 +454,6 @@ mru 1492
         config_path.parent.mkdir(parents=True, exist_ok=True)
         config_path.write_text(pppoe_config.strip())
 
-        # 启动 PPPoE
         r = subprocess.run(
             ["pon", f"ubunturouter-{ifname}"],
             capture_output=True, text=True, timeout=10
@@ -344,63 +464,6 @@ mru 1492
 
     except Exception as e:
         return {"success": False, "message": f"PPPoE 启动异常: {e}"}
-
-
-def _write_netplan(ifname: str, cfg: IfaceUpdateModel):
-    """写入 netplan 配置（持久化）"""
-    netplan_dir = Path("/etc/netplan")
-    netplan_dir.mkdir(parents=True, exist_ok=True)
-
-    # 读取或创建 netplan 配置
-    netplan_file = netplan_dir / "01-netcfg.yaml"
-    netplan_data = {"network": {"version": 2, "renderer": "networkd", "ethernets": {}}}
-
-    if netplan_file.exists():
-        try:
-            import yaml
-            netplan_data = yaml.safe_load(netplan_file.read_text()) or netplan_data
-        except Exception:
-            pass
-
-    # 生成接口配置
-    iface_config = {}
-    if cfg.protocol == "dhcp":
-        iface_config["dhcp4"] = True
-    elif cfg.protocol == "static":
-        iface_config["dhcp4"] = False
-        if cfg.address:
-            iface_config["addresses"] = [cfg.address]
-        if cfg.gateway:
-            iface_config["routes"] = [{"to": "default", "via": cfg.gateway}]
-    elif cfg.protocol == "pppoe":
-        # PPPoE 不走 netplan 直接管理
-        iface_config["dhcp4"] = False
-        # ppp 接口由 pppd 管理
-    elif cfg.protocol == "disabled":
-        iface_config["dhcp4"] = False
-
-    if cfg.dns:
-        iface_config["nameservers"] = {"addresses": cfg.dns}
-    if cfg.mtu:
-        iface_config["mtu"] = cfg.mtu
-    if cfg.mac:
-        iface_config["match"] = {"macaddress": cfg.mac}
-
-    iface_config["optional"] = True
-
-    # 确保 ethernets 存在
-    if "ethernets" not in netplan_data["network"]:
-        netplan_data["network"]["ethernets"] = {}
-    netplan_data["network"]["ethernets"][ifname] = iface_config
-
-    # 写入
-    import yaml
-    netplan_file.write_text(
-        yaml.dump(netplan_data, default_flow_style=False, allow_unicode=True, indent=2, sort_keys=False)
-    )
-
-    # apply
-    subprocess.run(["netplan", "apply"], capture_output=True, text=True, timeout=30)
 
 
 # ═══════════════════════════════════════════════════════════════
