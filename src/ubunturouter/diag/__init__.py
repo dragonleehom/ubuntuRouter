@@ -26,6 +26,11 @@ class DiagManager:
 
     def __init__(self):
         TASK_DIR.mkdir(parents=True, exist_ok=True)
+        # Ensure directory is writable
+        try:
+            TASK_DIR.chmod(0o777)
+        except Exception:
+            pass
 
     # ─── Task Management ─────────────────────────────────────────
 

@@ -101,8 +101,10 @@ def create_app() -> FastAPI:
                     if index.exists():
                         content = index.read_text(encoding="utf-8")
                         return HTMLResponse(content=content, status_code=200)
+            # 非 404 或 API 路径的异常：返回原始 detail
+            detail = exc.detail if hasattr(exc, 'detail') else "Not Found"
             return JSONResponse(
-                content={"detail": "Not Found"}, status_code=exc.status_code
+                content={"detail": detail}, status_code=exc.status_code
             )
 
     return app
