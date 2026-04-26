@@ -52,9 +52,6 @@ def _nmcli(args: list, timeout: int = 15) -> dict:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
         stdout = r.stdout.strip()
         stderr = r.stderr.strip()
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.warning(f"_nmcli {' '.join(str(a) for a in args[:3])}... exit={r.returncode} stdout=[{stdout[:200]}] stderr=[{stderr[:200]}]")
         return {
             "success": r.returncode == 0,
             "stdout": stdout,
