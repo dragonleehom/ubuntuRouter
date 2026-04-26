@@ -117,6 +117,11 @@ const routes = [
         component: () => import('@/views/backup/SystemBackup.vue'),
       },
       {
+        path: 'config',
+        name: 'ConfigEditor',
+        component: () => import('@/views/ConfigEditor.vue'),
+      },
+      {
         path: 'orchestrator',
         name: 'Orchestrator',
         component: () => import('@/views/orchestrator/OrchestratorCanvas.vue'),

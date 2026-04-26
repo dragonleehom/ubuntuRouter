@@ -111,6 +111,10 @@
           <el-icon><Setting /></el-icon>
           <span>系统设置</span>
         </el-menu-item>
+        <el-menu-item index="/config">
+          <el-icon><Setting /></el-icon>
+          <span>配置编辑</span>
+        </el-menu-item>
       </el-menu>
 
       <!-- PC端折叠按钮 -->
@@ -143,6 +147,7 @@
       <!-- 内容区 -->
       <el-main class="main-content">
         <router-view />
+        <PendingChangesBar />
       </el-main>
     </el-container>
   </el-container>
@@ -152,6 +157,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores'
+import PendingChangesBar from '@/components/PendingChangesBar.vue'
 import {
   Monitor, DataBoard, Connection, Lock, Setting,
   Fold, Expand, SwitchButton, SetUp, Goods, Operation,
@@ -185,6 +191,7 @@ const pageTitle = computed(() => {
     '/dns': 'DNS 管理',
     '/diag': '网络诊断',
     '/backup': '备份恢复',
+    '/config': '配置编辑',
     '/orchestrator': '流量编排',
     '/vm': '虚拟机',
     '/system': '系统设置',
@@ -340,6 +347,7 @@ onUnmounted(() => {
   background: #0a0a0a;
   padding: 16px;
   overflow-y: auto;
+  padding-bottom: 80px;
 }
 @media (min-width: 768px) {
   .main-content { padding: 24px; }
