@@ -104,7 +104,7 @@ async def wireless_status(auth=Depends(require_auth)):
     if r["success"]:
         for line in r["stdout"].split("\n"):
             parts = line.split(":")
-            if len(parts) >= 3 and parts[1] == "wifi":
+            if len(parts) >= 3 and ("wifi" in parts[1] or "802-11" in parts[1]):
                 conn_name = parts[0]
                 # 判断是 AP 还是 client
                 r_info = _nmcli(["-t", "-f", "802-11-wireless.mode,802-11-wireless.ssid,wifi-sec.key-mgmt", "con", "show", conn_name])
@@ -284,7 +284,7 @@ async def start_ap(body: APConfigRequest, auth=Depends(require_auth)):
     if r_active["success"]:
         for line in r_active["stdout"].split("\n"):
             parts = line.split(":")
-            if len(parts) >= 2 and parts[1] == "wifi":
+            if len(parts) >= 2 and ("wifi" in parts[1] or "802-11" in parts[1]):
                 _nmcli(["con", "down", parts[0]])
 
     # 2. 构造连接名
@@ -337,7 +337,7 @@ async def stop_ap(auth=Depends(require_auth)):
     if r["success"]:
         for line in r["stdout"].split("\n"):
             parts = line.split(":")
-            if len(parts) >= 3 and parts[1] == "wifi":
+            if len(parts) >= 3 and ("wifi" in parts[1] or "802-11" in parts[1]):
                 # 检查是否 AP 模式
                 r_mode = _nmcli(["-t", "-f", "802-11-wireless.mode", "con", "show", parts[0]])
                 if r_mode["success"] and "ap" in r_mode["stdout"]:
@@ -364,7 +364,7 @@ async def client_connect(body: ClientConnectRequest, auth=Depends(require_auth))
     if r_active["success"]:
         for line in r_active["stdout"].split("\n"):
             parts = line.split(":")
-            if len(parts) >= 2 and parts[1] == "wifi":
+            if len(parts) >= 2 and ("wifi" in parts[1] or "802-11" in parts[1]):
                 _nmcli(["con", "down", parts[0]])
 
     # 2. 用 nmcli 连接
@@ -406,7 +406,7 @@ async def client_disconnect(auth=Depends(require_auth)):
     if r["success"]:
         for line in r["stdout"].split("\n"):
             parts = line.split(":")
-            if len(parts) >= 2 and parts[1] == "wifi":
+            if len(parts) >= 2 and ("wifi" in parts[1] or "802-11" in parts[1]):
                 _nmcli(["con", "down", parts[0]])
                 _nmcli(["con", "delete", parts[0]])
                 disconnected = True
@@ -423,7 +423,7 @@ async def wireless_reset(auth=Depends(require_auth)):
     if r["success"]:
         for line in r["stdout"].split("\n"):
             parts = line.split(":")
-            if len(parts) >= 2 and parts[1] == "wifi":
+            if len(parts) >= 2 and ("wifi" in parts[1] or "802-11" in parts[1]):
                 _nmcli(["con", "down", parts[0]])
                 _nmcli(["con", "delete", parts[0]])
     return {"success": True, "message": "无线已重置"}
