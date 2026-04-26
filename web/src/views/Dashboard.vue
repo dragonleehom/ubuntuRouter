@@ -1,197 +1,130 @@
 <template>
-    <div class="dashboard">
-    <!-- 拓扑图面板 (全宽) -->
-    <div class="panel panel-topo">
-      <div class="panel-header">
-        <el-icon><Connection /></el-icon>
-        <span>网络拓扑</span>
+  <div class="dashboard">
+    <!-- 顶部：系统状态概览卡片行 -->
+    <div class="stats-row">
+      <div class="stat-card glass-card">
+        <div class="stat-icon cpu"><Cpu /></div>
+        <div class="stat-body">
+          <div class="stat-value">{{ system.cpu_usage ?? '--' }}<span class="unit">%</span></div>
+          <div class="stat-label">CPU</div>
+        </div>
       </div>
-      <div class="panel-body" style="padding:0;">
+      <div class="stat-card glass-card">
+        <div class="stat-icon mem"><Coin /></div>
+        <div class="stat-body">
+          <div class="stat-value">{{ memUsed }}<span class="unit">/{{ memTotal }} MB</span></div>
+          <div class="stat-label">内存</div>
+        </div>
+      </div>
+      <div class="stat-card glass-card">
+        <div class="stat-icon disk"><Folder /></div>
+        <div class="stat-body">
+          <div class="stat-value">{{ diskPercent }}<span class="unit">%</span></div>
+          <div class="stat-label">磁盘</div>
+        </div>
+      </div>
+      <div class="stat-card glass-card">
+        <div class="stat-icon uptime"><Timer /></div>
+        <div class="stat-body">
+          <div class="stat-value uptime-text">{{ uptimeShort }}</div>
+          <div class="stat-label">运行时间</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 快捷操作面板 -->
+    <div class="quick-actions glass-card">
+      <div class="section-title">快捷操作</div>
+      <div class="action-buttons">
+        <el-button class="action-btn" @click="handleAction('refresh')" :loading="actionLoading === 'refresh'">
+          <el-icon><Refresh /></el-icon> 刷新服务
+        </el-button>
+        <el-button class="action-btn" @click="handleAction('check-updates')" :loading="actionLoading === 'check-updates'">
+          <el-icon><Download /></el-icon> 检查更新
+        </el-button>
+        <el-button class="action-btn" type="success" @click="handleAction('apply-updates')" :loading="actionLoading === 'apply-updates'">
+          <el-icon><Top /></el-icon> 更新系统
+        </el-button>
+        <el-button class="action-btn" type="warning" @click="handleAction('reboot')" :loading="actionLoading === 'reboot'">
+          <el-icon><RefreshRight /></el-icon> 重启系统
+        </el-button>
+        <el-button class="action-btn" type="danger" @click="handleAction('shutdown')" :loading="actionLoading === 'shutdown'">
+          <el-icon><SwitchButton /></el-icon> 关机
+        </el-button>
+      </div>
+    </div>
+
+    <!-- 中间行：实时流量 + 网络拓扑 2列布局 -->
+    <div class="mid-row">
+      <!-- 实时流量曲线 -->
+      <div class="glass-card traffic-card">
+        <div class="section-title">实时流量</div>
+        <div class="traffic-rate-bar">
+          <div class="rate-item">
+            <span class="rate-dot down" />
+            <span>下载</span>
+            <span class="rate-value">{{ formatBps(currentTraffic.ens3?.rx_bps || 0) }}</span>
+          </div>
+          <div class="rate-item">
+            <span class="rate-dot up" />
+            <span>上传</span>
+            <span class="rate-value">{{ formatBps(currentTraffic.ens3?.tx_bps || 0) }}</span>
+          </div>
+        </div>
+        <v-chart ref="chartRef" :option="chartOption" autoresize class="traffic-chart" />
+      </div>
+
+      <!-- 网络拓扑 -->
+      <div class="glass-card topo-card">
+        <div class="section-title">网络拓扑</div>
         <NetTopo />
       </div>
     </div>
 
-    <div class="dashboard-grid">
-      <!-- 面板一：网络拓扑 + 通道状态 + 流量仪表 -->
-      <div class="panel panel-network">
-        <div class="panel-header">
-          <el-icon><Connection /></el-icon>
-          <span>网络状态</span>
+    <!-- 底行：网络状态 + 服务状态 2列 -->
+    <div class="bottom-row">
+      <!-- 网络状态 -->
+      <div class="glass-card">
+        <div class="section-title">网络状态</div>
+        <div class="iface-list">
+          <div v-for="iface in interfaces" :key="iface.name" class="iface-item">
+            <div class="iface-left">
+              <el-tag :type="iface.state === 'UP' ? 'success' : 'danger'" size="small" effect="plain" round>
+                {{ iface.state }}
+              </el-tag>
+              <span class="iface-name">{{ iface.name }}</span>
+            </div>
+            <div class="iface-right">
+              <span class="iface-ip">{{ iface.ipv4?.[0] || '无 IP' }}</span>
+              <span v-if="iface.speed" class="iface-speed">{{ iface.speed }}M</span>
+            </div>
+          </div>
         </div>
-        <div class="panel-body">
-          <div v-if="loading" class="loading">
-            <el-skeleton :rows="4" animated />
-          </div>
-          <div v-else-if="!status" class="empty">
-            <el-empty description="无法获取网络状态" />
-          </div>
-          <div v-else>
-            <!-- 接口列表 -->
-            <div class="iface-list">
-              <div
-                v-for="iface in status.interfaces"
-                :key="iface.name"
-                class="iface-item"
-              >
-                <div class="iface-name">
-                  <el-tag
-                    :type="iface.state === 'UP' ? 'success' : 'danger'"
-                    size="small"
-                    effect="dark"
-                  >
-                    {{ iface.state }}
-                  </el-tag>
-                  <span>{{ iface.name }}</span>
-                </div>
-                <div class="iface-info">
-                  <span v-if="iface.ipv4 && iface.ipv4.length">
-                    {{ iface.ipv4[0] }}
-                  </span>
-                  <span v-else class="text-muted">无 IP</span>
-                  <span v-if="iface.speed" class="speed">{{ iface.speed }}M</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- 配置概览 -->
-            <div v-if="status.config" class="config-summary">
-              <div class="config-row">
-                <span class="label">LAN 网关</span>
-                <span class="value">192.168.21.1</span>
-              </div>
-              <div class="config-row" v-if="status.config.dhcp">
-                <span class="label">DHCP</span>
-                <span class="value">{{ status.config.dhcp.range }}</span>
-              </div>
-              <div class="config-row">
-                <span class="label">接口数</span>
-                <span class="value">{{ (status.config.interfaces || []).length }}</span>
-              </div>
-            </div>
-          </div>
+        <div class="config-summary" v-if="config">
+          <div class="config-row"><span>LAN 网关</span><span>192.168.21.1</span></div>
+          <div class="config-row" v-if="config.dhcp"><span>DHCP</span><span>{{ config.dhcp.range }}</span></div>
+          <div class="config-row"><span>接口数</span><span>{{ config.interfaces?.length || 0 }}</span></div>
         </div>
       </div>
 
-      <!-- 面板二：CPU/内存/磁盘/运行时间 -->
-      <div class="panel panel-system">
-        <div class="panel-header">
-          <el-icon><Monitor /></el-icon>
-          <span>系统资源</span>
-        </div>
-        <div class="panel-body">
-          <div v-if="loading" class="loading">
-            <el-skeleton :rows="4" animated />
-          </div>
-          <div v-else-if="!status?.system" class="empty">
-            <el-empty description="无法获取系统信息" />
-          </div>
-          <div v-else class="system-stats">
-            <!-- CPU -->
-            <div class="stat-item">
-              <div class="stat-label">
-                <el-icon><Cpu /></el-icon>
-                <span>CPU</span>
-              </div>
-              <div class="stat-bar">
-                <el-progress
-                  :percentage="Math.round(status.system.cpu_usage || 0)"
-                  :stroke-width="12"
-                  :format="() => `${Math.round(status.system.cpu_usage || 0)}%`"
-                />
-              </div>
+      <!-- 服务状态 -->
+      <div class="glass-card">
+        <div class="section-title">服务状态</div>
+        <div class="service-list">
+          <div v-for="svc in services" :key="svc.name" class="service-item">
+            <div class="service-left">
+              <span class="status-dot" :class="svc.active ? 'alive' : 'dead'" />
+              <span class="service-name">{{ svc.name }}</span>
             </div>
-
-            <!-- 内存 -->
-            <div class="stat-item" v-if="status.system.memory">
-              <div class="stat-label">
-                <el-icon><Coin /></el-icon>
-                <span>内存</span>
-              </div>
-              <div class="stat-bar">
-                <el-progress
-                  :percentage="memPercent"
-                  :stroke-width="12"
-                  :format="() => `${status.system.memory.used_mb}MB / ${status.system.memory.total_mb}MB`"
-                />
-              </div>
-            </div>
-
-            <!-- 磁盘 -->
-            <div class="stat-item" v-if="status.system.disk">
-              <div class="stat-label">
-                <el-icon><Folder /></el-icon>
-                <span>磁盘</span>
-              </div>
-              <div class="stat-bar">
-                <el-progress
-                  :percentage="diskPercent"
-                  :stroke-width="12"
-                  :format="() => `${status.system.disk.usage_percent}`"
-                />
-              </div>
-            </div>
-
-            <!-- 运行时间 -->
-            <div class="stat-item">
-              <div class="stat-label">
-                <el-icon><Timer /></el-icon>
-                <span>运行时间</span>
-              </div>
-              <span class="stat-value">{{ uptimeText }}</span>
-            </div>
-
-            <!-- 温度 -->
-            <div class="stat-item" v-if="status.system.temperature_c">
-              <div class="stat-label">
-                <el-icon><Sunny /></el-icon>
-                <span>温度</span>
-              </div>
-              <span class="stat-value">{{ status.system.temperature_c }}°C</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 面板三：应用/服务状态 -->
-      <div class="panel panel-apps">
-        <div class="panel-header">
-          <el-icon><Grid /></el-icon>
-          <span>服务状态</span>
-        </div>
-        <div class="panel-body">
-          <div v-if="loading" class="loading">
-            <el-skeleton :rows="4" animated />
-          </div>
-          <div v-else-if="!status?.apps" class="empty">
-            <el-empty description="无法获取服务状态" />
-          </div>
-          <div v-else class="app-list">
-            <div
-              v-for="app in status.apps"
-              :key="app.name"
-              class="app-card"
+            <el-button
+              size="small"
+              :type="svc.active ? 'warning' : 'success'"
+              round
+              :loading="serviceLoading === svc.name"
+              @click="toggleService(svc)"
             >
-              <div class="app-status">
-                <el-tag
-                  :type="app.active ? 'success' : 'danger'"
-                  size="small"
-                  effect="dark"
-                  round
-                >
-                  {{ app.active ? '运行中' : '已停止' }}
-                </el-tag>
-              </div>
-              <div class="app-name">{{ app.name }}</div>
-              <div class="app-actions">
-                <el-button
-                  size="small"
-                  :type="app.active ? 'warning' : 'success'"
-                  @click="toggleService(app)"
-                >
-                  {{ app.active ? '停止' : '启动' }}
-                </el-button>
-              </div>
-            </div>
+              {{ svc.active ? '停止' : '启动' }}
+            </el-button>
           </div>
         </div>
       </div>
@@ -201,133 +134,372 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useDashboardStore } from '@/stores'
+import { useRoute } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { api, useAuthStore } from '@/stores'
 import {
-  Connection, Monitor, Grid, Cpu, Coin, Folder, Timer, Sunny,
+  Cpu, Coin, Folder, Timer, Refresh, Download, Top,
+  RefreshRight, SwitchButton,
 } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
-import { api } from '@/stores'
+import VChart from 'vue-echarts'
+import 'echarts'
 import NetTopo from '@/components/NetTopo.vue'
 
-const store = useDashboardStore()
+const route = useRoute()
+const authStore = useAuthStore()
+
+onMounted(() => { document.title = route.meta?.title || '仪表盘' })
+
+// --- 系统状态 ---
+const system = ref({})
+const interfaces = ref([])
+const services = ref([])
+const config = ref(null)
 const loading = ref(false)
-const status = ref(null)
-let timer = null
 
-const memPercent = computed(() => {
-  if (!status.value?.system?.memory) return 0
-  const m = status.value.system.memory
-  return Math.round((m.used_mb / m.total_mb) * 100)
-})
-
-const diskPercent = computed(() => {
-  if (!status.value?.system?.disk) return 0
-  const d = status.value.system.disk
-  const pct = d.usage_percent?.replace('%', '')
-  return parseInt(pct) || 0
-})
-
-const uptimeText = computed(() => {
-  const sec = status.value?.system?.uptime_seconds || 0
-  const d = Math.floor(sec / 86400)
-  const h = Math.floor((sec % 86400) / 3600)
-  const m = Math.floor((sec % 3600) / 60)
-  const parts = []
-  if (d > 0) parts.push(`${d}天`)
-  if (h > 0) parts.push(`${h}小时`)
-  parts.push(`${m}分钟`)
-  return parts.join(' ')
-})
-
-async function fetchData() {
+async function fetchStatus() {
   loading.value = true
   try {
     const res = await api.get('/dashboard/status')
-    status.value = res.data
+    const d = res.data
+    system.value = d.system || {}
+    interfaces.value = d.interfaces || []
+    services.value = d.apps || []
+    config.value = d.config || null
   } catch (e) {
-    console.error('获取数据失败:', e)
+    console.error('获取状态失败:', e)
   }
   loading.value = false
 }
 
-async function toggleService(app) {
-  const action = app.active ? 'stop' : 'start'
-  try {
-    await api.post(`/system/service/${app.name}/${action}`)
-    ElMessage.success(`${app.name} ${action === 'start' ? '启动' : '停止'}成功`)
-    await fetchData()
-  } catch (e) {
-    ElMessage.error(`${app.name} 操作失败: ${e.response?.data?.detail || e.message}`)
-  }
+const memUsed = computed(() => system.value.memory?.used_mb ?? '--')
+const memTotal = computed(() => system.value.memory?.total_mb ?? '')
+const diskPercent = computed(() => {
+  const d = system.value.disk?.usage_percent
+  return d ? parseInt(d.replace('%', '')) : '--'
+})
+const uptimeShort = computed(() => {
+  const sec = system.value.uptime_seconds || 0
+  const d = Math.floor(sec / 86400)
+  const h = Math.floor((sec % 86400) / 3600)
+  if (d > 0) return `${d}d ${h}h`
+  return `${h}h`
+})
+
+// --- 实时流量（WS）---
+const chartRef = ref(null)
+const trafficHistory = ref([])
+const currentTraffic = ref({})
+let ws = null
+let wsTimer = null
+
+function formatBps(bps) {
+  if (bps >= 1e9) return (bps / 1e9).toFixed(2) + ' Gbps'
+  if (bps >= 1e6) return (bps / 1e6).toFixed(2) + ' Mbps'
+  if (bps >= 1e3) return (bps / 1e3).toFixed(1) + ' Kbps'
+  return bps + ' bps'
 }
 
+function connectWS() {
+  const token = localStorage.getItem('access_token')
+  if (!token) return
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const url = `${proto}//${location.host}/api/v1/ws/dashboard`
+
+  try {
+    ws = new WebSocket(url)
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ token }))
+    }
+    ws.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data)
+        if (data.type === 'traffic') {
+          currentTraffic.value = data.traffic || {}
+          const rx = data.traffic?.ens3?.rx_bps || 0
+          const tx = data.traffic?.ens3?.tx_bps || 0
+          const now = Date.now()
+          trafficHistory.value.push([now, rx, tx])
+          if (trafficHistory.value.length > 60) {
+            trafficHistory.value = trafficHistory.value.slice(-60)
+          }
+        }
+      } catch {}
+    }
+    ws.onclose = () => {
+      ws = null
+    }
+  } catch {}
+}
+
+const chartOption = computed(() => ({
+  tooltip: {
+    trigger: 'axis',
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderColor: 'rgba(0,0,0,0.06)',
+    borderRadius: 12,
+    padding: [10, 14],
+    formatter: (params) => {
+      const rx = params.find(p => p.seriesName === '下载')
+      const tx = params.find(p => p.seriesName === '上传')
+      return `<div style="font-size:13px;color:#1E293B;font-weight:600;margin-bottom:4px;">实时流量</div>
+        <div style="display:flex;gap:16px;">
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#0052FF;margin-right:4px;"></span>下载 ${rx ? formatBps(rx.value[1]) : '--'}</span>
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#4ADE80;margin-right:4px;"></span>上传 ${tx ? formatBps(tx.value[2]) : '--'}</span>
+        </div>`
+    },
+  },
+  grid: { left: 50, right: 16, top: 24, bottom: 24 },
+  xAxis: {
+    type: 'time',
+    axisLine: { show: false },
+    axisTick: { show: false },
+    axisLabel: { color: '#94a3b8', fontSize: 11 },
+    splitLine: { show: false },
+  },
+  yAxis: {
+    type: 'value',
+    axisLine: { show: false },
+    axisTick: { show: false },
+    axisLabel: {
+      color: '#94a3b8', fontSize: 11,
+      formatter: (v) => v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v,
+    },
+    splitLine: { lineStyle: { color: 'rgba(0,0,0,0.04)', type: 'dashed' } },
+  },
+  series: [
+    {
+      name: '下载',
+      type: 'line',
+      smooth: true,
+      symbol: 'none',
+      lineStyle: { width: 2, color: '#0052FF' },
+      areaStyle: {
+        color: {
+          type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+          colorStops: [
+            { offset: 0, color: 'rgba(0,82,255,0.25)' },
+            { offset: 1, color: 'rgba(0,82,255,0.02)' },
+          ],
+        },
+      },
+      data: trafficHistory.value.map(d => [d[0], d[1]]),
+    },
+    {
+      name: '上传',
+      type: 'line',
+      smooth: true,
+      symbol: 'none',
+      lineStyle: { width: 2, color: '#4ADE80' },
+      areaStyle: {
+        color: {
+          type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+          colorStops: [
+            { offset: 0, color: 'rgba(74,222,128,0.2)' },
+            { offset: 1, color: 'rgba(74,222,128,0.02)' },
+          ],
+        },
+      },
+      data: trafficHistory.value.map(d => [d[0], d[2]]),
+    },
+  ],
+}))
+
+// --- 快捷操作 ---
+const actionLoading = ref('')
+
+async function handleAction(action) {
+  if (action === 'reboot' || action === 'shutdown') {
+    try {
+      await ElMessageBox.confirm(
+        `确定要${action === 'reboot' ? '重启' : '关机'}系统吗？`,
+        '警告',
+        { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
+      )
+    } catch { return }
+  }
+
+  actionLoading.value = action
+  try {
+    const res = await api.post(`/dashboard/action/${action}`)
+    ElMessage.success(res.data.message || '操作成功')
+    if (action === 'refresh') fetchStatus()
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || '操作失败')
+  }
+  actionLoading.value = ''
+}
+
+// --- 服务启停 ---
+const serviceLoading = ref('')
+
+async function toggleService(svc) {
+  const action = svc.active ? 'stop' : 'start'
+  serviceLoading.value = svc.name
+  try {
+    await api.post(`/dashboard/action/${action}-service/${svc.name}`)
+    ElMessage.success(`${svc.name} ${action === 'start' ? '启动' : '停止'}成功`)
+    fetchStatus()
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || '操作失败')
+  }
+  serviceLoading.value = ''
+}
+
+// --- 生命周期 ---
+let statusTimer = null
+
 onMounted(() => {
-  fetchData()
-  timer = setInterval(fetchData, 10000)
+  fetchStatus()
+  statusTimer = setInterval(fetchStatus, 15000)
+  connectWS()
 })
 
 onUnmounted(() => {
-  if (timer) clearInterval(timer)
+  if (statusTimer) clearInterval(statusTimer)
+  if (ws) ws.close()
 })
 </script>
 
 <style scoped>
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.dashboard {
+  display: flex;
+  flex-direction: column;
   gap: 20px;
 }
-@media (max-width: 767px) {
-  .dashboard-grid {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
+
+/* 玻璃卡片复用 */
+.glass-card {
+  background: rgba(255,255,255,0.65);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.4);
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(31,38,135,0.07);
+  padding: 20px;
+  transition: all 0.25s ease;
 }
-.panel {
-  background: #141414;
-  border-radius: 12px;
-  border: 1px solid #222;
-  overflow: hidden;
-}
-.panel-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 16px 20px;
-  border-bottom: 1px solid #222;
+
+.section-title {
   font-size: 15px;
-  color: #ccc;
-}
-@media (max-width: 767px) {
-  .panel-header { padding: 12px 16px; font-size: 14px; }
-}
-.panel-body {
-  padding: 16px 20px;
-}
-@media (max-width: 767px) {
-  .panel-body { padding: 12px 14px; }
-}
-.panel-network {
-  grid-row: span 1;
-}
-.panel-apps {
-  grid-column: 1;
-}
-@media (max-width: 767px) {
-  .panel-apps { grid-column: auto; }
-}
-.panel-topo {
-  grid-column: 1 / -1;
+  font-weight: 600;
+  color: #1E293B;
   margin-bottom: 16px;
 }
-@media (max-width: 767px) {
-  .panel-topo { margin-bottom: 12px; }
+
+/* 顶部统计行 */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
 }
-.panel-system {
-  grid-row: span 2;
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
 }
-@media (max-width: 767px) {
-  .panel-system { grid-row: auto; }
+
+.stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.stat-icon.cpu { background: rgba(0,82,255,0.1); color: #0052FF; }
+.stat-icon.mem { background: rgba(74,222,128,0.1); color: #16a34a; }
+.stat-icon.disk { background: rgba(245,158,11,0.1); color: #d97706; }
+.stat-icon.uptime { background: rgba(139,92,246,0.1); color: #7c3aed; }
+
+.stat-body { min-width: 0; }
+.stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1E293B;
+  line-height: 1.2;
+}
+.stat-value .unit {
+  font-size: 13px;
+  font-weight: 400;
+  color: #64748B;
+  margin-left: 2px;
+}
+.uptime-text { font-size: 18px; }
+.stat-label {
+  font-size: 12px;
+  color: #64748B;
+  margin-top: 2px;
+  font-weight: 500;
+}
+
+/* 快捷操作 */
+.quick-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.quick-actions .section-title {
+  margin-bottom: 0;
+  white-space: nowrap;
+}
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.action-btn {
+  border-radius: 12px !important;
+  font-weight: 600 !important;
+}
+
+/* 中间行 */
+.mid-row {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 16px;
+}
+
+.traffic-card { display: flex; flex-direction: column; }
+.traffic-rate-bar {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 12px;
+}
+.rate-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #64748B;
+}
+.rate-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+}
+.rate-dot.down { background: #0052FF; }
+.rate-dot.up { background: #4ADE80; }
+.rate-value {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1E293B;
+  font-variant-numeric: tabular-nums;
+}
+.traffic-chart {
+  flex: 1;
+  min-height: 200px;
+}
+
+/* 底行 */
+.bottom-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
 }
 
 /* 接口列表 */
@@ -340,95 +512,89 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
-  background: rgba(255,255,255,0.03);
-  border-radius: 8px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.4);
+  border-radius: 12px;
+}
+.iface-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .iface-name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  font-weight: 500;
+  color: #1E293B;
+  font-size: 14px;
 }
-.iface-info {
+.iface-right {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #999;
+  color: #64748B;
   font-size: 13px;
 }
-.speed {
-  color: #409EFF;
+.iface-speed {
+  color: #0052FF;
+  font-weight: 600;
   font-size: 12px;
 }
-
-/* 系统统计 */
-.system-stats {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.stat-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: #999;
-}
-.stat-value {
-  font-size: 14px;
-  color: #e0e0e0;
-}
-
-/* 应用卡片 */
-.app-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.app-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
-  background: rgba(255,255,255,0.03);
-  border-radius: 8px;
-}
-.app-name {
-  flex: 1;
-  margin-left: 12px;
-  font-size: 14px;
-  color: #ccc;
-}
-
-.loading {
-  padding: 20px;
-}
-.empty {
-  padding: 20px;
-}
-.text-muted {
-  color: #666;
-}
 .config-summary {
-  margin-top: 16px;
+  margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid #222;
+  border-top: 1px solid rgba(0,0,0,0.04);
 }
 .config-row {
   display: flex;
   justify-content: space-between;
   padding: 4px 0;
   font-size: 13px;
+  color: #64748B;
 }
-.config-row .label {
-  color: #888;
+.config-row span:last-child {
+  color: #1E293B;
+  font-weight: 500;
 }
-.config-row .value {
-  color: #ccc;
+
+/* 服务列表 */
+.service-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.service-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.4);
+  border-radius: 12px;
+}
+.service-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+}
+.status-dot.alive { background: #4ADE80; box-shadow: 0 0 6px rgba(74,222,128,0.4); }
+.status-dot.dead { background: #FF4D8D; }
+.service-name {
+  font-size: 14px;
+  color: #1E293B;
+}
+
+/* 响应式 */
+@media (max-width: 1024px) {
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+  .mid-row, .bottom-row { grid-template-columns: 1fr; }
+}
+@media (max-width: 767px) {
+  .stats-row { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .stat-icon { width: 36px; height: 36px; font-size: 18px; }
+  .stat-value { font-size: 18px; }
+  .dashboard { gap: 12px; }
+  .glass-card { padding: 14px; }
 }
 </style>

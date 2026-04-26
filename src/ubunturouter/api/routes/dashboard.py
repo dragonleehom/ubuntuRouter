@@ -1,17 +1,137 @@
-"""Dashboard 全量状态 API"""
+"""Dashboard 全量状态 API — + 快捷操作路由"""
 
 import subprocess
 import json
+import asyncio
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from typing import Optional
 
 from ..deps import require_auth
 from ...engine.engine import ConfigEngine
-from ...engine.rollback import RollbackManager
 
 
 router = APIRouter()
+
+
+# --- 快捷操作 --------------------------------------------------
+
+
+@router.post("/action/refresh-services")
+async def action_refresh_services(auth=Depends(require_auth)):
+    """刷新所有系统服务"""
+    try:
+        subprocess.run(["systemctl", "daemon-reload"], timeout=10)
+        subprocess.run(["systemctl", "restart", "ubunturouter"], timeout=30)
+        return {"ok": True, "message": "服务已刷新"}
+    except Exception as e:
+        raise HTTPException(500, f"刷新失败: {e}")
+
+
+@router.post("/action/reboot")
+async def action_reboot(auth=Depends(require_auth)):
+    """重启系统"""
+    try:
+        subprocess.Popen(["sudo", "shutdown", "-r", "+1", "系统将在1分钟后重启"])
+        return {"ok": True, "message": "系统将在1分钟后重启"}
+    except Exception as e:
+        raise HTTPException(500, f"重启失败: {e}")
+
+
+@router.post("/action/shutdown")
+async def action_shutdown(auth=Depends(require_auth)):
+    """关机系统"""
+    try:
+        subprocess.Popen(["sudo", "shutdown", "-h", "+1", "系统将在1分钟后关机"])
+        return {"ok": True, "message": "系统将在1分钟后关机"}
+    except Exception as e:
+        raise HTTPException(500, f"关机失败: {e}")
+
+
+@router.post("/action/check-updates")
+async def action_check_updates(auth=Depends(require_auth)):
+    """检查系统更新"""
+    try:
+        r = subprocess.run(
+            ["apt", "list", "--upgradable", "2>/dev/null"],
+            capture_output=True, text=True, timeout=30, shell=True
+        )
+        lines = [l for l in r.stdout.split("\n") if l.strip() and "..." not in l]
+        packages = []
+        for l in lines[1:]:
+            parts = l.split()
+            if len(parts) >= 2:
+                packages.append(parts[0])
+        return {"ok": True, "updates_available": len(packages), "packages": packages[:20]}
+    except Exception as e:
+        raise HTTPException(500, f"检查更新失败: {e}")
+
+
+@router.post("/action/apply-updates")
+async def action_apply_updates(auth=Depends(require_auth)):
+    """应用系统更新"""
+    try:
+        subprocess.Popen(
+            ["sudo", "apt", "upgrade", "-y"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+        return {"ok": True, "message": "系统更新已开始（后台运行）"}
+    except Exception as e:
+        raise HTTPException(500, f"更新失败: {e}")
+
+
+@router.post("/action/start-service/{name}")
+async def action_start_service(name: str, auth=Depends(require_auth)):
+    """启动指定服务"""
+    try:
+        r = subprocess.run(
+            ["sudo", "systemctl", "start", name],
+            capture_output=True, text=True, timeout=15
+        )
+        if r.returncode != 0:
+            raise HTTPException(500, r.stderr.strip())
+        return {"ok": True, "message": f"{name} 已启动"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"启动失败: {e}")
+
+
+@router.post("/action/stop-service/{name}")
+async def action_stop_service(name: str, auth=Depends(require_auth)):
+    """停止指定服务"""
+    try:
+        r = subprocess.run(
+            ["sudo", "systemctl", "stop", name],
+            capture_output=True, text=True, timeout=15
+        )
+        if r.returncode != 0:
+            raise HTTPException(500, r.stderr.strip())
+        return {"ok": True, "message": f"{name} 已停止"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"停止失败: {e}")
+
+
+@router.post("/action/restart-service/{name}")
+async def action_restart_service(name: str, auth=Depends(require_auth)):
+    """重启指定服务"""
+    try:
+        r = subprocess.run(
+            ["sudo", "systemctl", "restart", name],
+            capture_output=True, text=True, timeout=15
+        )
+        if r.returncode != 0:
+            raise HTTPException(500, r.stderr.strip())
+        return {"ok": True, "message": f"{name} 已重启"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"重启失败: {e}")
+
+
+# --- Dashboard 状态 --------------------------------------------
 
 
 def _get_system_stats() -> dict:
