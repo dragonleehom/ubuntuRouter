@@ -12,6 +12,12 @@ export default [
         component: () => import('@/views/Interfaces.vue'),
       },
       {
+        path: 'wizard',
+        name: 'NetworkWizard',
+        meta: { title: '联网向导' },
+        component: () => import('@/views/NetworkWizard.vue'),
+      },
+      {
         path: 'wireless',
         name: 'NetworkWireless',
         meta: { title: 'WiFi' },

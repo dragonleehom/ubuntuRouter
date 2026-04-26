@@ -52,7 +52,8 @@
             <span>网络配置</span>
           </template>
           <el-menu-item index="/network/interfaces">接口</el-menu-item>
-          <el-menu-item index="/network/wireless">WiFi</el-menu-item>
+          <el-menu-item index="/network/wizard">联网向导</el-menu-item>
+          <el-menu-item index="/network/wireless">无线</el-menu-item>
           <el-menu-item index="/network/dhcp">DHCP 服务器</el-menu-item>
           <el-menu-item index="/network/hostnames">主机名映射</el-menu-item>
           <el-menu-item index="/network/dns">DNS 设置</el-menu-item>
