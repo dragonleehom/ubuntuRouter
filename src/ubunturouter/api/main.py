@@ -15,6 +15,9 @@ from .routes import samba as samba_routes
 from .routes import pppoe as pppoe_routes
 from .routes import ttyd as ttyd_routes
 from .routes import apt as apt_routes
+from .routes import dns as dns_routes
+from .routes import diag as diag_routes
+from .routes import backup as backup_routes
 from .ws import dashboard as ws_dashboard
 from .auth import jwt as jwt_auth
 from .tls import init_https
@@ -60,6 +63,9 @@ def create_app() -> FastAPI:
     app.include_router(pppoe_routes.router, prefix="/api/v1/pppoe", tags=["PPPoE"])
     app.include_router(ttyd_routes.router, prefix="/api/v1/ttyd", tags=["TTYD"])
     app.include_router(apt_routes.router, prefix="/api/v1/apt", tags=["APT"])
+    app.include_router(dns_routes.router, prefix="/api/v1/dns", tags=["DNS"])
+    app.include_router(diag_routes.router, prefix="/api/v1/diag", tags=["Diagnostics"])
+    app.include_router(backup_routes.router, prefix="/api/v1/backup", tags=["Backup"])
 
     # WebSocket
     app.add_api_websocket_route("/api/v1/ws/dashboard", ws_dashboard.websocket_endpoint)

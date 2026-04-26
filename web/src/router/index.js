@@ -102,6 +102,21 @@ const routes = [
         component: () => import('@/views/apt/AptSources.vue'),
       },
       {
+        path: 'dns',
+        name: 'DnsConfig',
+        component: () => import('@/views/dns/DnsConfig.vue'),
+      },
+      {
+        path: 'diag',
+        name: 'NetworkDiag',
+        component: () => import('@/views/diag/NetworkDiag.vue'),
+      },
+      {
+        path: 'backup',
+        name: 'SystemBackup',
+        component: () => import('@/views/backup/SystemBackup.vue'),
+      },
+      {
         path: 'orchestrator',
         name: 'Orchestrator',
         component: () => import('@/views/orchestrator/OrchestratorCanvas.vue'),

@@ -87,6 +87,18 @@
           <el-icon><Setting /></el-icon>
           <span>软件源</span>
         </el-menu-item>
+        <el-menu-item index="/dns">
+          <el-icon><Connection /></el-icon>
+          <span>DNS 管理</span>
+        </el-menu-item>
+        <el-menu-item index="/diag">
+          <el-icon><Connection /></el-icon>
+          <span>网络诊断</span>
+        </el-menu-item>
+        <el-menu-item index="/backup">
+          <el-icon><Setting /></el-icon>
+          <span>备份恢复</span>
+        </el-menu-item>
         <el-menu-item index="/orchestrator">
           <el-icon><SetUp /></el-icon>
           <span>流量编排</span>
@@ -170,6 +182,9 @@ const pageTitle = computed(() => {
     '/pppoe': 'PPPoE 拨号',
     '/terminal': 'Web 终端',
     '/apt': '软件源',
+    '/dns': 'DNS 管理',
+    '/diag': '网络诊断',
+    '/backup': '备份恢复',
     '/orchestrator': '流量编排',
     '/vm': '虚拟机',
     '/system': '系统设置',
