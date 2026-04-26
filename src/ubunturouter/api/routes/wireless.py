@@ -112,7 +112,7 @@ async def wireless_status(auth=Depends(require_auth)):
             if len(parts) >= 3 and ("wifi" in parts[1] or "802-11" in parts[1]):
                 conn_name = parts[0]
                 # 判断是 AP 还是 client
-                r_info = _nmcli(["-t", "-f", "802-11-wireless.mode,802-11-wireless.ssid,wifi-sec.key-mgmt", "con", "show", conn_name])
+                r_info = _nmcli(["-t", "-f", "802-11-wireless.mode,802-11-wireless.ssid,802-11-wireless-security.key-mgmt", "con", "show", conn_name])
                 if r_info["success"]:
                     mode_line = [l for l in r_info["stdout"].split("\n") if l.startswith("802-11-wireless.mode:")]
                     ssid_line = [l for l in r_info["stdout"].split("\n") if l.startswith("802-11-wireless.ssid:")]
