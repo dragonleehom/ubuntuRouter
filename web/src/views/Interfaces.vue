@@ -40,8 +40,14 @@
         <!-- 端口速率指示 -->
         <div class="port-speed-indicator">
           <div class="speed-ring" :class="{ active: p.state === 'UP' }">
-            <span class="speed-value">{{ p.speed || '?' }}</span>
-            <span class="speed-unit">Mbps</span>
+            <template v-if="p.speed">
+              <span class="speed-value">{{ p.speed }}</span>
+              <span class="speed-unit">Mbps</span>
+            </template>
+            <template v-else>
+              <span class="speed-icon"><el-icon :size="28"><Monitor /></el-icon></span>
+              <span class="speed-unit">虚拟端口</span>
+            </template>
           </div>
         </div>
 
@@ -672,6 +678,13 @@ onMounted(fetchInterfaces)
   border-color: #0052FF;
   background: rgba(0,82,255,0.06);
   box-shadow: 0 0 16px rgba(0,82,255,0.15);
+}
+.speed-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #bbb;
+  margin-top: -4px;
 }
 .speed-value {
   font-size: 22px;
