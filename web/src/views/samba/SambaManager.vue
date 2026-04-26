@@ -40,7 +40,7 @@
           <el-table-column prop="path" label="路径" min-width="200" />
           <el-table-column label="可写" width="70">
             <template #default="{ row }">
-              <el-tag :type="row.writable ? 'success' : 'info'" size="small">{{ row.writable ? '是' : '否' }}</el-tag>
+              <el-tag :type="row.writable !== false ? 'success' : 'info'" size="small">{{ row.writable !== false ? '是' : '否' }}</el-tag>
             </template>
           </el-table-column>
           <el-table-column label="访客" width="70" class-name="hide-mobile">
@@ -143,14 +143,14 @@ const savingUser = ref(false)
 const shareForm = ref({ name: '', path: '', writable: true, guest_ok: false, valid_users: '' })
 const userForm = ref({ username: '', password: '' })
 
-const sambaActive = computed(() => statusInfo.value.smbd_active || false)
+const sambaActive = computed(() => statusInfo.value?.services?.smbd === 'active' || false)
 
 const serviceCards = computed(() => {
-  const s = statusInfo.value
+  const s = statusInfo.value?.services || {}
   return [
-    { label: 'SMB', active: s.smbd_active },
-    { label: 'NMB', active: s.nmbd_active },
-    { label: '配置有效', active: s.config_valid },
+    { label: 'SMB', active: s.smbd === 'active' },
+    { label: 'NMB', active: s.nmbd === 'active' },
+    { label: '配置有效', active: statusInfo.value?.config_valid ?? true },
   ]
 })
 
