@@ -1,4 +1,44 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import dashboardRoutes from './routes/dashboard.js'
+import statusRoutes from './routes/status.js'
+import networkRoutes from './routes/network.js'
+import remoteRoutes from './routes/remote.js'
+import storageRoutes from './routes/storage.js'
+import appsRoutes from './routes/apps.js'
+import systemRoutes from './routes/system.js'
+import powerRoutes from './routes/power.js'
+
+// 旧路径到新路径的重定向映射
+const redirectMap = {
+  '/interfaces': '/status/interfaces',
+  '/firewall': '/network/firewall',
+  '/dhcp': '/network/dhcp',
+  '/routing': '/status/routes',
+  '/vpn': '/remote/vpn',
+  '/multiwan': '/network/interfaces',
+  '/containers': '/apps/docker',
+  '/appstore': '/apps/market',
+  '/ddns': '/remote/ddns',
+  '/storage': '/storage/overview',
+  '/monitor': '/system/devices',
+  '/samba': '/storage/samba',
+  '/pppoe': '/network/interfaces',
+  '/terminal': '/system/ttyd',
+  '/apt': '/system/software',
+  '/dns': '/network/dns',
+  '/diag': '/network/diagnostics',
+  '/backup': '/storage/backup',
+  '/config': '/system/config',
+  '/orchestrator': '/network/interfaces',
+  '/vm': '/apps/docker',
+  '/system': '/system/settings',
+}
+
+// 批量生成重定向路由
+const redirectRoutes = Object.entries(redirectMap).map(([oldPath, newPath]) => ({
+  path: oldPath.substring(1), // 去掉开头的 /
+  redirect: newPath,
+}))
 
 const routes = [
   {
@@ -12,125 +52,18 @@ const routes = [
     component: () => import('@/layouts/MainLayout.vue'),
     meta: { requiresAuth: true },
     children: [
-      {
-        path: '',
-        redirect: '/dashboard',
-      },
-      {
-        path: 'dashboard',
-        name: 'Dashboard',
-        component: () => import('@/views/Dashboard.vue'),
-      },
-      {
-        path: 'interfaces',
-        name: 'Interfaces',
-        component: () => import('@/views/Interfaces.vue'),
-      },
-      {
-        path: 'firewall',
-        name: 'Firewall',
-        component: () => import('@/views/firewall/FirewallRules.vue'),
-      },
-      {
-        path: 'dhcp',
-        name: 'DHCP',
-        component: () => import('@/views/dhcp/DhcpDns.vue'),
-      },
-      {
-        path: 'routing',
-        name: 'Routing',
-        component: () => import('@/views/routing/RoutingTable.vue'),
-      },
-      {
-        path: 'system',
-        name: 'System',
-        component: () => import('@/views/System.vue'),
-      },
-      {
-        path: 'vpn',
-        name: 'VPN',
-        component: () => import('@/views/vpn/VpnTunnels.vue'),
-      },
-      {
-        path: 'multiwan',
-        name: 'MultiWAN',
-        component: () => import('@/views/multiwan/MultiWanConfig.vue'),
-      },
-      {
-        path: 'containers',
-        name: 'Containers',
-        component: () => import('@/views/containers/ContainerManager.vue'),
-      },
-      {
-        path: 'appstore',
-        name: 'AppStore',
-        component: () => import('@/views/appstore/AppStore.vue'),
-      },
-      {
-        path: 'ddns',
-        name: 'DDNS',
-        component: () => import('@/views/ddns/DdnsConfig.vue'),
-      },
-      {
-        path: 'storage',
-        name: 'Storage',
-        component: () => import('@/views/storage/StorageManager.vue'),
-      },
-      {
-        path: 'monitor',
-        name: 'Monitor',
-        component: () => import('@/views/monitor/SystemMonitor.vue'),
-      },
-      {
-        path: 'samba',
-        name: 'Samba',
-        component: () => import('@/views/samba/SambaManager.vue'),
-      },
-      {
-        path: 'pppoe',
-        name: 'PPPoE',
-        component: () => import('@/views/pppoe/PPPoEConnection.vue'),
-      },
-      {
-        path: 'terminal',
-        name: 'Terminal',
-        component: () => import('@/views/terminal/WebTerminal.vue'),
-      },
-      {
-        path: 'apt',
-        name: 'AptSources',
-        component: () => import('@/views/apt/AptSources.vue'),
-      },
-      {
-        path: 'dns',
-        name: 'DnsConfig',
-        component: () => import('@/views/dns/DnsConfig.vue'),
-      },
-      {
-        path: 'diag',
-        name: 'NetworkDiag',
-        component: () => import('@/views/diag/NetworkDiag.vue'),
-      },
-      {
-        path: 'backup',
-        name: 'SystemBackup',
-        component: () => import('@/views/backup/SystemBackup.vue'),
-      },
-      {
-        path: 'config',
-        name: 'ConfigEditor',
-        component: () => import('@/views/ConfigEditor.vue'),
-      },
-      {
-        path: 'orchestrator',
-        name: 'Orchestrator',
-        component: () => import('@/views/orchestrator/OrchestratorCanvas.vue'),
-      },
-      {
-        path: 'vm',
-        name: 'VM',
-        component: () => import('@/views/vm/VirtualMachines.vue'),
-      },
+      // 仪表盘（根目录的子路由）
+      ...dashboardRoutes,
+      // 各模块路由
+      ...statusRoutes,
+      ...networkRoutes,
+      ...remoteRoutes,
+      ...storageRoutes,
+      ...appsRoutes,
+      ...systemRoutes,
+      ...powerRoutes,
+      // 旧路径重定向
+      ...redirectRoutes,
     ],
   },
 ]

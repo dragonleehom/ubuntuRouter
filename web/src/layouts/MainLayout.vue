@@ -23,98 +23,130 @@
         router
         @select="onMenuSelect"
       >
+        <!-- 仪表盘（独立项，不折叠） -->
         <el-menu-item index="/dashboard">
           <el-icon><DataBoard /></el-icon>
           <span>仪表盘</span>
         </el-menu-item>
-        <el-menu-item index="/interfaces">
-          <el-icon><Connection /></el-icon>
-          <span>网络接口</span>
-        </el-menu-item>
-        <el-menu-item index="/firewall">
-          <el-icon><Lock /></el-icon>
-          <span>防火墙</span>
-        </el-menu-item>
-        <el-menu-item index="/dhcp">
-          <el-icon><Connection /></el-icon>
-          <span>DHCP/DNS</span>
-        </el-menu-item>
-        <el-menu-item index="/routing">
-          <el-icon><SetUp /></el-icon>
-          <span>路由</span>
-        </el-menu-item>
-        <el-menu-item index="/vpn">
-          <el-icon><Connection /></el-icon>
-          <span>VPN</span>
-        </el-menu-item>
-        <el-menu-item index="/multiwan">
-          <el-icon><Connection /></el-icon>
-          <span>多线路</span>
-        </el-menu-item>
-        <el-menu-item index="/containers">
-          <el-icon><Monitor /></el-icon>
-          <span>容器</span>
-        </el-menu-item>
-        <el-menu-item index="/appstore">
-          <el-icon><Goods /></el-icon>
-          <span>应用市场</span>
-        </el-menu-item>
-        <el-menu-item index="/ddns">
-          <el-icon><Connection /></el-icon>
-          <span>DDNS</span>
-        </el-menu-item>
-        <el-menu-item index="/storage">
-          <el-icon><Monitor /></el-icon>
-          <span>存储管理</span>
-        </el-menu-item>
-        <el-menu-item index="/monitor">
-          <el-icon><DataBoard /></el-icon>
-          <span>系统监控</span>
-        </el-menu-item>
-        <el-menu-item index="/samba">
-          <el-icon><Connection /></el-icon>
-          <span>Samba 共享</span>
-        </el-menu-item>
-        <el-menu-item index="/pppoe">
-          <el-icon><Connection /></el-icon>
-          <span>PPPoE 拨号</span>
-        </el-menu-item>
-        <el-menu-item index="/terminal">
-          <el-icon><Monitor /></el-icon>
-          <span>Web 终端</span>
-        </el-menu-item>
-        <el-menu-item index="/apt">
-          <el-icon><Setting /></el-icon>
-          <span>软件源</span>
-        </el-menu-item>
-        <el-menu-item index="/dns">
-          <el-icon><Connection /></el-icon>
-          <span>DNS 管理</span>
-        </el-menu-item>
-        <el-menu-item index="/diag">
-          <el-icon><Connection /></el-icon>
-          <span>网络诊断</span>
-        </el-menu-item>
-        <el-menu-item index="/backup">
-          <el-icon><Setting /></el-icon>
-          <span>备份恢复</span>
-        </el-menu-item>
-        <el-menu-item index="/orchestrator">
-          <el-icon><SetUp /></el-icon>
-          <span>流量编排</span>
-        </el-menu-item>
-        <el-menu-item index="/vm">
-          <el-icon><Monitor /></el-icon>
-          <span>虚拟机</span>
-        </el-menu-item>
-        <el-menu-item index="/system">
-          <el-icon><Setting /></el-icon>
-          <span>系统设置</span>
-        </el-menu-item>
-        <el-menu-item index="/config">
-          <el-icon><Setting /></el-icon>
-          <span>配置编辑</span>
-        </el-menu-item>
+
+        <!-- 2. 路由状态 -->
+        <el-sub-menu index="/status">
+          <template #title>
+            <el-icon><Monitor /></el-icon>
+            <span>路由状态</span>
+          </template>
+          <el-menu-item index="/status/overview">概览</el-menu-item>
+          <el-menu-item index="/status/interfaces">接口总览</el-menu-item>
+          <el-menu-item index="/status/routes">路由表</el-menu-item>
+          <el-menu-item index="/status/firewall">防火墙状态</el-menu-item>
+          <el-menu-item index="/status/realtime">实时流量</el-menu-item>
+          <el-menu-item index="/status/traffic">流量监控</el-menu-item>
+          <el-menu-item index="/status/syslog">系统日志</el-menu-item>
+          <el-menu-item index="/status/processes">进程管理</el-menu-item>
+        </el-sub-menu>
+
+        <!-- 3. 网络配置 -->
+        <el-sub-menu index="/network">
+          <template #title>
+            <el-icon><Connection /></el-icon>
+            <span>网络配置</span>
+          </template>
+          <el-menu-item index="/network/interfaces">接口</el-menu-item>
+          <el-menu-item index="/network/wireless">WiFi</el-menu-item>
+          <el-menu-item index="/network/dhcp">DHCP 服务器</el-menu-item>
+          <el-menu-item index="/network/hostnames">主机名映射</el-menu-item>
+          <el-menu-item index="/network/dns">DNS 设置</el-menu-item>
+          <el-menu-item index="/network/static-routes">静态路由</el-menu-item>
+          <el-menu-item index="/network/firewall">防火墙规则</el-menu-item>
+          <el-menu-item index="/network/port-forward">端口转发</el-menu-item>
+          <el-menu-item index="/network/qos">SQM QoS</el-menu-item>
+          <el-menu-item index="/network/turbo-acc">Turbo ACC</el-menu-item>
+          <el-menu-item index="/network/diagnostics">网络诊断</el-menu-item>
+          <el-menu-item index="/network/upnp">UPnP</el-menu-item>
+        </el-sub-menu>
+
+        <!-- 4. 远程服务 -->
+        <el-sub-menu index="/remote">
+          <template #title>
+            <el-icon><Connection /></el-icon>
+            <span>远程服务</span>
+          </template>
+          <el-menu-item index="/remote/ddns">动态域名</el-menu-item>
+          <!-- VPN 带三级子菜单 -->
+          <el-sub-menu index="/remote/vpn">
+            <template #title><span>VPN 设置</span></template>
+            <el-menu-item index="/remote/vpn">概览</el-menu-item>
+            <el-menu-item index="/remote/vpn/tailscale">Tailscale</el-menu-item>
+          </el-sub-menu>
+          <el-menu-item index="/remote/frp-client">FRP 客户端</el-menu-item>
+          <el-menu-item index="/remote/frp-server">FRP 服务端</el-menu-item>
+          <el-menu-item index="/remote/socat">Socat</el-menu-item>
+          <el-menu-item index="/remote/webdav">WebDAV</el-menu-item>
+        </el-sub-menu>
+
+        <!-- 5. 存储管理 -->
+        <el-sub-menu index="/storage">
+          <template #title>
+            <el-icon><Monitor /></el-icon>
+            <span>存储管理</span>
+          </template>
+          <el-menu-item index="/storage/overview">磁盘概览</el-menu-item>
+          <el-menu-item index="/storage/files">文件管理</el-menu-item>
+          <el-menu-item index="/storage/samba">Samba</el-menu-item>
+          <el-menu-item index="/storage/ftp">FTP</el-menu-item>
+          <el-menu-item index="/storage/nfs">NFS</el-menu-item>
+          <el-menu-item index="/storage/disks">磁盘管理</el-menu-item>
+          <el-menu-item index="/storage/backup">备份还原</el-menu-item>
+        </el-sub-menu>
+
+        <!-- 6. 应用管理 -->
+        <el-sub-menu index="/apps">
+          <template #title>
+            <el-icon><Goods /></el-icon>
+            <span>应用管理</span>
+          </template>
+          <el-menu-item index="/apps/market">应用市场</el-menu-item>
+          <el-menu-item index="/apps/installed">已安装应用</el-menu-item>
+          <!-- Docker 带三级子菜单 -->
+          <el-sub-menu index="/apps/docker">
+            <template #title><span>Docker</span></template>
+            <el-menu-item index="/apps/docker">概览</el-menu-item>
+            <el-menu-item index="/apps/docker/containers">容器</el-menu-item>
+            <el-menu-item index="/apps/docker/images">镜像</el-menu-item>
+            <el-menu-item index="/apps/docker/networks">网络</el-menu-item>
+            <el-menu-item index="/apps/docker/volumes">存储卷</el-menu-item>
+          </el-sub-menu>
+        </el-sub-menu>
+
+        <!-- 7. 系统设置 -->
+        <el-sub-menu index="/system">
+          <template #title>
+            <el-icon><Setting /></el-icon>
+            <span>系统设置</span>
+          </template>
+          <el-menu-item index="/system/settings">系统</el-menu-item>
+          <el-menu-item index="/system/users">用户管理</el-menu-item>
+          <el-menu-item index="/system/ssh-keys">SSH 密钥</el-menu-item>
+          <el-menu-item index="/system/software">软件包</el-menu-item>
+          <el-menu-item index="/system/startup">启动项</el-menu-item>
+          <el-menu-item index="/system/scheduled-tasks">定时任务</el-menu-item>
+          <el-menu-item index="/system/led">LED 配置</el-menu-item>
+          <el-menu-item index="/system/snmp">SNMP</el-menu-item>
+          <el-menu-item index="/system/ttyd">TTYD 终端</el-menu-item>
+          <el-menu-item index="/system/devices">设备管理</el-menu-item>
+          <el-menu-item index="/system/config">配置编辑</el-menu-item>
+          <el-menu-item index="/system/timed-reboot">定时重启</el-menu-item>
+        </el-sub-menu>
+
+        <!-- 8. 重启关机 -->
+        <el-sub-menu index="/power">
+          <template #title>
+            <el-icon><SwitchButton /></el-icon>
+            <span>重启关机</span>
+          </template>
+          <el-menu-item index="/power/reboot">重启</el-menu-item>
+          <el-menu-item index="/power/shutdown">关机</el-menu-item>
+        </el-sub-menu>
       </el-menu>
 
       <!-- PC端折叠按钮 -->
@@ -170,33 +202,9 @@ const connected = ref(true)
 const mobileMenuOpen = ref(false)
 const isMobile = ref(window.innerWidth < 768)
 
+// 根据路由的 meta.title 动态获取页面标题
 const pageTitle = computed(() => {
-  const map = {
-    '/dashboard': '仪表盘',
-    '/interfaces': '网络接口',
-    '/firewall': '防火墙',
-    '/dhcp': 'DHCP/DNS',
-    '/routing': '路由',
-    '/vpn': 'VPN',
-    '/multiwan': '多线路',
-    '/containers': '容器',
-    '/appstore': '应用市场',
-    '/ddns': 'DDNS',
-    '/storage': '存储管理',
-    '/monitor': '系统监控',
-    '/samba': 'Samba 共享',
-    '/pppoe': 'PPPoE 拨号',
-    '/terminal': 'Web 终端',
-    '/apt': '软件源',
-    '/dns': 'DNS 管理',
-    '/diag': '网络诊断',
-    '/backup': '备份恢复',
-    '/config': '配置编辑',
-    '/orchestrator': '流量编排',
-    '/vm': '虚拟机',
-    '/system': '系统设置',
-  }
-  return map[route.path] || 'UbuntuRouter'
+  return route.meta?.title || 'UbuntuRouter'
 })
 
 function onMenuSelect() {
@@ -354,5 +362,9 @@ onUnmounted(() => {
 }
 .el-menu {
   border-right: none;
+}
+/* 子菜单样式：缩进三级菜单 */
+.el-sub-menu .el-sub-menu .el-menu-item {
+  padding-left: 56px !important;
 }
 </style>
