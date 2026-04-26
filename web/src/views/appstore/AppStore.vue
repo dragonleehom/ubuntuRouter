@@ -1,6 +1,11 @@
 <template>
   <div class="appstore-page">
-    <h2>应用市场</h2>
+    <div class="page-header">
+      <h2>应用市场</h2>
+      <el-button size="small" @click="repoDialogVisible = true">
+        <el-icon><Setting /></el-icon> 仓库管理
+      </el-button>
+    </div>
 
     <!-- 搜索和分类 -->
     <div class="toolbar">
@@ -39,23 +44,29 @@
               </div>
               <div class="app-name">{{ app.name }}</div>
               <div class="app-desc">{{ app.description || app.id }}</div>
-              <el-tag size="small" type="info" class="app-cat">{{ app.category }}</el-tag>
+              <el-tag size="small" :type="catTagType(app.category)" class="app-cat">{{ app.category }}</el-tag>
               <div class="app-footer">
                 <el-tag v-if="app.installed" size="small" type="success">已安装</el-tag>
-                <span v-else class="app-version">{{ app.version }}</span>
+                <span v-else class="app-version">v{{ app.version }}</span>
               </div>
             </el-card>
           </el-col>
         </el-row>
-
         <el-empty v-if="!loading && apps.length === 0" description="暂无应用" />
       </el-tab-pane>
 
       <el-tab-pane label="已安装" name="installed">
         <el-table :data="installedApps" stripe v-loading="installedLoading">
-          <el-table-column prop="name" label="名称" min-width="180" />
-          <el-table-column prop="version" label="版本" width="100" />
-          <el-table-column label="更新" width="120">
+          <el-table-column prop="name" label="名称" min-width="150" />
+          <el-table-column label="状态" width="100">
+            <template #default="{ row }">
+              <el-tag v-if="row.status === 'running'" size="small" type="success">运行中</el-tag>
+              <el-tag v-else-if="row.status === 'stopped'" size="small" type="info">已停止</el-tag>
+              <el-tag v-else size="small" type="warning">未知</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="version" label="版本" width="80" />
+          <el-table-column label="更新" width="100">
             <template #default="{ row }">
               <el-tag v-if="row.has_update" type="danger" size="small">
                 {{ row.available_version }} 可用
@@ -63,17 +74,16 @@
               <span v-else class="text-muted">最新版</span>
             </template>
           </el-table-column>
-          <el-table-column prop="category" label="分类" width="100" />
-          <el-table-column label="操作" width="200" fixed="right">
+          <el-table-column label="操作" width="280" fixed="right">
             <template #default="{ row }">
-              <el-button v-if="row.has_update" size="small" type="warning" @click="updateApp(row)">
-                更新
-              </el-button>
+              <el-button size="small" type="success" @click="startApp(row)" :loading="row._operating === 'start'">启动</el-button>
+              <el-button size="small" type="warning" @click="stopApp(row)" :loading="row._operating === 'stop'">停止</el-button>
               <el-button size="small" @click="viewDetail({ id: row.id })">详情</el-button>
               <el-button size="small" type="danger" @click="uninstallApp(row)">卸载</el-button>
             </template>
           </el-table-column>
         </el-table>
+        <el-empty v-if="!installedLoading && installedApps.length === 0" description="暂未安装任何应用" />
       </el-tab-pane>
     </el-tabs>
 
@@ -89,7 +99,7 @@
             <h3>{{ detailDialog.app.name }}</h3>
             <p>{{ detailDialog.app.description }}</p>
             <div class="meta-tags">
-              <el-tag size="small">{{ detailDialog.app.category }}</el-tag>
+              <el-tag :type="catTagType(detailDialog.app.category)" size="small">{{ detailDialog.app.category }}</el-tag>
               <el-tag size="small" type="info">v{{ detailDialog.app.version }}</el-tag>
               <el-tag v-if="detailDialog.app.author" size="small" type="warning">{{ detailDialog.app.author }}</el-tag>
             </div>
@@ -176,11 +186,57 @@
           </el-form-item>
         </div>
       </el-form>
-
       <template #footer>
         <el-button @click="installDialog.visible = false">取消</el-button>
         <el-button type="primary" @click="doInstall" :loading="installing">开始安装</el-button>
       </template>
+    </el-dialog>
+
+    <!-- 仓库管理对话框 -->
+    <el-dialog v-model="repoDialogVisible" title="仓库管理" width="600px">
+      <div class="repo-header">
+        <el-button type="primary" size="small" @click="showAddRepo = !showAddRepo">
+          <el-icon><Plus /></el-icon> 添加仓库
+        </el-button>
+        <el-button size="small" @click="syncAllRepos" :loading="syncing">
+          <el-icon><Refresh /></el-icon> 同步全部
+        </el-button>
+      </div>
+
+      <el-form v-if="showAddRepo" class="add-repo-form" @submit.prevent="addRepo">
+        <el-form-item label="名称">
+          <el-input v-model="newRepo.name" placeholder="my-repo" size="small" />
+        </el-form-item>
+        <el-form-item label="仓库地址">
+          <el-input v-model="newRepo.url" placeholder="https://github.com/user/repo" size="small" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" size="small" @click="addRepo" :loading="addingRepo">添加</el-button>
+          <el-button size="small" @click="showAddRepo = false">取消</el-button>
+        </el-form-item>
+      </el-form>
+
+      <el-table :data="repos" stripe size="small">
+        <el-table-column prop="name" label="名称" width="120" />
+        <el-table-column prop="url" label="仓库地址" min-width="200">
+          <template #default="{ row }">
+            <a :href="row.url" target="_blank" class="repo-url">{{ row.url }}</a>
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.status === 'ok' ? 'success' : row.status === 'syncing' ? 'warning' : 'danger'" size="small">
+              {{ row.status === 'ok' ? '正常' : row.status === 'syncing' ? '同步中' : '异常' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="120">
+          <template #default="{ row }">
+            <el-button size="small" @click="syncRepo(row)" :loading="row._syncing">同步</el-button>
+            <el-button v-if="row.name !== 'official'" size="small" type="danger" @click="removeRepo(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
     </el-dialog>
   </div>
 </template>
@@ -188,7 +244,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { api } from '@/stores'
-import { Search, Refresh, Monitor } from '@element-plus/icons-vue'
+import { Search, Refresh, Plus, Setting, Monitor } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const loading = ref(false)
@@ -205,13 +261,25 @@ const installDialog = ref({ visible: false, app: null })
 const installForm = ref({ env: {} })
 const installing = ref(false)
 
+// 仓库管理
+const repoDialogVisible = ref(false)
+const repos = ref([])
+const showAddRepo = ref(false)
+const newRepo = ref({ name: '', url: '' })
+const addingRepo = ref(false)
+const syncing = ref(false)
+
+function catTagType(cat) {
+  const map = { '网络安全': 'danger', '存储': 'warning', '工具': 'info', '开发': '', '多媒体': 'success' }
+  return map[cat] || 'info'
+}
+
 async function fetchApps() {
   loading.value = true
   try {
     const params = {}
     if (searchQuery.value) params.search = searchQuery.value
     if (selectedCategory.value) params.category = selectedCategory.value
-
     const res = await api.get('/appstore/apps', { params })
     apps.value = res.data.apps || []
     categories.value = res.data.categories || []
@@ -225,7 +293,19 @@ async function fetchInstalled() {
   installedLoading.value = true
   try {
     const res = await api.get('/appstore/installed')
-    installedApps.value = res.data.apps || []
+    // 尝试获取运行状态
+    const containers = []
+    try {
+      const c = await api.get('/containers/list')
+      containers.push(...c.data.containers)
+    } catch {}
+    installedApps.value = (res.data.apps || []).map(app => {
+      app._operating = ''
+      // Search containers for this app's compose project
+      const running = containers.some(c => c.compose_project === app.id && c.status === 'running')
+      app.status = running ? 'running' : 'stopped'
+      return app
+    })
   } catch (e) {
     ElMessage.error('获取已安装列表失败')
   }
@@ -288,6 +368,101 @@ async function uninstallApp(app) {
   }
 }
 
+// ── App lifecycle (start/stop) ────────────────────
+async function startApp(row) {
+  row._operating = 'start'
+  try {
+    const res = await api.post(`/appstore/apps/${row.id}/install`, {})
+    ElMessage.success(res.data.message || '已启动')
+    await fetchInstalled()
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || '启动失败')
+  }
+  row._operating = ''
+}
+
+async function stopApp(row) {
+  row._operating = 'stop'
+  try {
+    const res = await api.post(`/appstore/apps/${row.id}/uninstall?keep_data=true`)
+    ElMessage.success('已停止')
+    await fetchInstalled()
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || '停止失败')
+  }
+  row._operating = ''
+}
+
+// ── 仓库管理 ──────────────────────────────────────
+async function fetchRepos() {
+  try {
+    const res = await api.get('/appstore/repo/list')
+    repos.value = (res.data.repos || []).map(r => ({ ...r, _syncing: false }))
+  } catch (e) {
+    ElMessage.error('获取仓库列表失败')
+  }
+}
+
+async function addRepo() {
+  if (!newRepo.value.name || !newRepo.value.url) {
+    ElMessage.warning('请填写仓库名称和地址')
+    return
+  }
+  addingRepo.value = true
+  try {
+    const res = await api.post('/appstore/repo/add', {
+      name: newRepo.value.name,
+      url: newRepo.value.url,
+    })
+    ElMessage.success(res.data.message || '仓库添加成功')
+    newRepo.value = { name: '', url: '' }
+    showAddRepo.value = false
+    await fetchRepos()
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || '添加仓库失败')
+  }
+  addingRepo.value = false
+}
+
+async function syncRepo(row) {
+  row._syncing = true
+  try {
+    const res = await api.post(`/appstore/repo/sync/${row.name}`)
+    ElMessage.success(res.data.message || '同步完成')
+    await fetchRepos()
+    await fetchApps()
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || '同步失败')
+  }
+  row._syncing = false
+}
+
+async function syncAllRepos() {
+  syncing.value = true
+  try {
+    const res = await api.post('/appstore/repo/sync')
+    ElMessage.success(`同步完成 (${res.data.total} 个仓库)`)
+    await fetchRepos()
+    await fetchApps()
+  } catch (e) {
+    ElMessage.error('同步失败')
+  }
+  syncing.value = false
+}
+
+async function removeRepo(row) {
+  try {
+    await ElMessageBox.confirm(`确认删除仓库 "${row.name}"？`, '确认')
+    await api.delete(`/appstore/repo/${row.name}`)
+    ElMessage.success('仓库已删除')
+    await fetchRepos()
+    await fetchApps()
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error('删除仓库失败')
+  }
+}
+
+// ── Init ──────────────────────────────────────────
 onMounted(() => {
   fetchApps()
   fetchInstalled()
@@ -296,6 +471,8 @@ onMounted(() => {
 
 <style scoped>
 .appstore-page { padding: 0; }
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.page-header h2 { margin: 0; font-size: 20px; }
 .toolbar { display: flex; gap: 12px; margin-bottom: 20px; align-items: center; flex-wrap: wrap; }
 .app-card { cursor: pointer; text-align: center; padding: 8px; transition: transform 0.2s; }
 .app-card:hover { transform: translateY(-2px); }
@@ -316,4 +493,8 @@ onMounted(() => {
 .config-section h4 { margin: 0 0 8px 0; color: #ccc; }
 .form-help { font-size: 12px; color: #888; margin-top: 4px; }
 .detail-actions { margin-top: 20px; display: flex; gap: 12px; justify-content: flex-end; }
+.repo-header { display: flex; gap: 12px; margin-bottom: 16px; align-items: center; }
+.add-repo-form { padding: 16px; background: #1a1a1a; border-radius: 6px; margin-bottom: 16px; }
+.repo-url { color: #409EFF; text-decoration: none; font-size: 12px; }
+.repo-url:hover { text-decoration: underline; }
 </style>
