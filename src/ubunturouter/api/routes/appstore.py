@@ -121,18 +121,25 @@ async def get_app_detail(app_id: str, auth=Depends(require_auth)):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _check_container_running(app_id: str) -> str:
-    """通过 docker ps 检查容器运行状态"""
+    """通过 docker ps -a 检查容器运行状态"""
     import subprocess
     try:
         r = subprocess.run(
-            ["docker", "ps", "--filter", f"name=ubunturouter-{app_id}",
-             "--format", "{{.Status}}"],
+            ["docker", "ps", "-a", "--filter", f"name={app_id}",
+             "--format", "{{.Status}}\t{{.Names}}"],
             capture_output=True, text=True, timeout=5,
         )
         if r.returncode == 0 and r.stdout.strip():
-            status = r.stdout.strip().lower()
-            if "up" in status or "running" in status:
-                return "running"
+            # 可能有多个容器，检查每个的状态
+            lines = r.stdout.strip().split("\n")
+            for line in lines:
+                parts = line.split("\t")
+                if len(parts) == 2:
+                    status = parts[0].lower()
+                    if app_id in parts[1].lower():
+                        if "up" in status:
+                            return "running"
+                        return "stopped"
             return "stopped"
     except Exception:
         pass
