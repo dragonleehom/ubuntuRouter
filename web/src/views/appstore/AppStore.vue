@@ -139,8 +139,8 @@
       <template v-if="detailDialog.app">
         <div class="detail-header">
               <div class="detail-icon">
-                <img v-if="detailDialog.app.icon" :src="detailDialog.app.icon" :alt="detailDialog.app.name" />
-                <img v-else :src="getIconUrl(detailDialog.app.id)" :alt="detailDialog.app.name" @error="$event.target.style.display='none'" style="max-width:80px;max-height:80px" />
+                <img v-if="detailDialog.app.icon" :src="detailDialog.app.icon" :alt="detailDialog.app.name" @load="onIconLoad($event)" />
+                <img v-else :src="getIconUrl(detailDialog.app.id)" :alt="detailDialog.app.name" @load="onIconLoad($event)" @error="$event.target.style.display='none'" style="max-width:80px;max-height:80px" />
                 <el-icon v-if="!detailDialog.app.icon" :size="48" color="#409EFF" style="display:none"><Monitor /></el-icon>
               </div>
           <div class="detail-meta">
@@ -301,21 +301,19 @@ const totalApps = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(60)
 const categories = ref([])
+const allCategories = ref([])
 const installedApps = ref([])
 const installedLoading = ref(false)
 const searchQuery = ref('')
 const selectedCategory = ref('')
 const selectedTag = ref('')
 const activeTab = ref('market')
-const visibleTagCount = ref(7)
 
 const detailDialog = ref({ visible: false, app: null })
 const iconErrors = ref({})
 
 function onIconLoad(event) {
   const img = event.target
-  const parent = img.parentElement
-  if (!parent) return
   // 检测图片是否有白色背景——采样左上角像素
   try {
     const canvas = document.createElement('canvas')
@@ -324,9 +322,19 @@ function onIconLoad(event) {
     const ctx = canvas.getContext('2d')
     ctx.drawImage(img, 0, 0)
     const pixel = ctx.getImageData(0, 0, 1, 1).data
-    // 如果左上角是白色 (RGB > 240)，加圆形容器遮盖白色背景
+    // 如果左上角是白色 (RGB > 240)，把白色区域转为透明
     if (pixel[0] > 240 && pixel[1] > 240 && pixel[2] > 240) {
-      parent.classList.add('has-white-bg')
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      const data = imageData.data
+      for (let i = 0; i < data.length; i += 4) {
+        // 如果像素的 RGB 都接近白色，设为透明
+        if (data[i] > 235 && data[i + 1] > 235 && data[i + 2] > 235) {
+          data[i + 3] = 0
+        }
+      }
+      ctx.putImageData(imageData, 0, 0)
+      // 用处理后的 canvas 替换 img 的 src
+      img.src = canvas.toDataURL('image/png')
     }
   } catch {
     // 跨域或其它原因无法读取像素，忽略
@@ -351,8 +359,9 @@ const syncing = ref(false)
 // ─── 标签筛选（全部展开，支持多选切换） ──────
 
 const sortedTags = computed(() => {
-  // 排"其他"到末尾
-  return [...categories.value].sort((a, b) => {
+  // 使用独立的 allCategories（不受 API 筛选影响）
+  // 排其他到末尾
+  return [...allCategories.value].sort((a, b) => {
     if (a === '其他') return 1
     if (b === '其他') return -1
     return 0
@@ -416,6 +425,10 @@ async function fetchApps() {
     apps.value = res.data.apps || []
     totalApps.value = res.data.total || 0
     categories.value = res.data.categories || []
+    // 独立存储全部分类（首次调用时）
+    if (allCategories.value.length === 0 && categories.value.length > 0) {
+      allCategories.value = [...categories.value]
+    }
   } catch (e) {
     ElMessage.error('获取应用列表失败')
   }
@@ -596,7 +609,14 @@ async function removeRepo(row) {
 }
 
 // ── Init ──────────────────────────────────────────
-onMounted(() => {
+onMounted(async () => {
+  // 单独获取全部分类（不受 fetchApps 筛选影响）
+  try {
+    const res2 = await api.get('/appstore/categories')
+    if (res2.data.categories?.length) {
+      allCategories.value = res2.data.categories
+    }
+  } catch {}
   fetchApps()
   fetchInstalled()
 })
@@ -650,16 +670,10 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  overflow: hidden;
+  width: 48px;
+  height: 48px;
 }
-.icon-wrapper.has-white-bg {
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.06);
-}
-.icon-wrapper img { max-width: 38px; max-height: 38px; }
+.icon-wrapper img { max-width: 48px; max-height: 48px; }
 .app-name { font-size: 14px; font-weight: 500; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .app-desc { font-size: 12px; color: #999; margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .app-meta { margin-bottom: 8px; }
