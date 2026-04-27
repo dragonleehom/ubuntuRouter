@@ -14,26 +14,14 @@
           全部
         </el-check-tag>
         <el-check-tag
-          v-for="tag in visibleTags"
+          v-for="tag in sortedTags"
           :key="tag"
           :checked="selectedTag === tag"
           @click="changeTag(tag)"
+          class="tag-item"
         >
           {{ tag }}
         </el-check-tag>
-        <el-dropdown v-if="hiddenTags.length > 0" class="more-tag">
-          <el-check-tag :checked="moreTag !== ''">
-            {{ moreTagLabel }}
-            <el-icon :size="10"><arrow-down /></el-icon>
-          </el-check-tag>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item v-for="tag in hiddenTags" :key="tag" @click="changeTag(tag)">
-                {{ tag }}
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
       </div>
       <div class="search-bar">
         <el-input
@@ -333,32 +321,15 @@ const newRepo = ref({ name: '', url: '' })
 const addingRepo = ref(false)
 const syncing = ref(false)
 
-// ─── 标签筛选（类似 1Panel 风格） ──────────────
+// ─── 标签筛选（全部展开，支持多选切换） ──────
 
-const visibleTags = computed(() => {
-  // 先排"其他"到末尾
-  const sorted = [...categories.value].sort((a, b) => {
+const sortedTags = computed(() => {
+  // 排"其他"到末尾
+  return [...categories.value].sort((a, b) => {
     if (a === '其他') return 1
     if (b === '其他') return -1
     return 0
   })
-  return sorted.slice(0, visibleTagCount.value)
-})
-
-const hiddenTags = computed(() => {
-  const tags = categories.value.filter(t => !visibleTags.value.includes(t))
-  return tags
-})
-
-const moreTag = computed(() => {
-  if (selectedTag.value && hiddenTags.value.includes(selectedTag.value)) {
-    return selectedTag.value
-  }
-  return ''
-})
-
-const moreTagLabel = computed(() => {
-  return selectedTag.value ? selectedTag.value : '更多'
 })
 
 function changeTag(tag) {
