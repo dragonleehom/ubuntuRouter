@@ -335,7 +335,15 @@ def parse_onepanel_manifest(manifest_path: Path) -> Optional[AppManifest]:
 
     name = data.get("title", data.get("name", app_id))
     description = data.get("description", "")
-    version = data.get("version", parent_name)
+    # 版本号：优先 data.yml 中的 version 字段；软链接路径时取实际版本目录名
+    if is_symlink_path:
+        try:
+            real_parent = os.path.basename(os.path.realpath(manifest_path.parent))
+            version = data.get("version", real_parent)
+        except Exception:
+            version = data.get("version", parent_name)
+    else:
+        version = data.get("version", parent_name)
 
     # 分类
     additional_props = data.get("additionalProperties", data.get("additional_properties", {}))
