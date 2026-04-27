@@ -7,36 +7,76 @@
       </el-button>
     </div>
 
-    <!-- 搜索和分类 -->
+    <!-- 标签筛选 + 搜索 -->
     <div class="toolbar">
-      <el-input
-        v-model="searchQuery"
-        placeholder="搜索应用..."
-        clearable
-        style="width: 300px"
-        @clear="fetchApps"
-        @keyup.enter="fetchApps"
-      >
-        <template #prefix>
-          <el-icon><Search /></el-icon>
-        </template>
-      </el-input>
+      <div class="tag-row">
+        <el-check-tag :checked="selectedTag === ''" @click="changeTag('')">
+          全部
+        </el-check-tag>
+        <el-check-tag
+          v-for="tag in visibleTags"
+          :key="tag"
+          :checked="selectedTag === tag"
+          @click="changeTag(tag)"
+        >
+          {{ tag }}
+        </el-check-tag>
+        <el-dropdown v-if="hiddenTags.length > 0" class="more-tag">
+          <el-check-tag :checked="moreTag !== ''">
+            {{ moreTagLabel }}
+            <el-icon :size="10"><arrow-down /></el-icon>
+          </el-check-tag>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item v-for="tag in hiddenTags" :key="tag" @click="changeTag(tag)">
+                {{ tag }}
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </div>
+      <div class="search-bar">
+        <el-input
+          v-model="searchQuery"
+          placeholder="搜索应用..."
+          clearable
+          style="width: 260px"
+          @clear="fetchApps"
+          @keyup.enter="fetchApps"
+        >
+          <template #prefix>
+            <el-icon><Search /></el-icon>
+          </template>
+        </el-input>
+        <el-button type="primary" @click="fetchApps">
+          <el-icon><Refresh /></el-icon> 刷新
+        </el-button>
+      </div>
+    </div>
 
-      <el-select v-model="selectedCategory" placeholder="全部分类" clearable @change="fetchApps">
-        <el-option label="全部分类" value="" />
-        <el-option v-for="cat in categories" :key="cat" :label="cat" :value="cat" />
-      </el-select>
-
-      <el-button type="primary" @click="fetchApps">
-        <el-icon><Refresh /></el-icon> 刷新
-      </el-button>
+    <!-- 统计信息 + 分页 -->
+    <div class="stats-bar">
+      <span class="stats-text">共 {{ totalApps }} 个应用</span>
+      <span class="stats-divider">|</span>
+      <span class="stats-text">当前页 {{ apps.length }} 个</span>
+      <span v-if="totalApps > 60" class="pagination-hint">
+        分页显示，可使用标签筛选缩小范围
+      </span>
     </div>
 
     <!-- Tab: 应用市场 / 已安装 -->
     <el-tabs v-model="activeTab">
       <el-tab-pane label="应用市场" name="market">
-        <el-row :gutter="16">
-          <el-col v-for="app in apps" :key="app.id" :xs="12" :sm="8" :md="6" :lg="4" style="margin-bottom: 16px">
+        <el-row v-if="apps.length > 0" :gutter="12">
+          <el-col
+            v-for="app in apps"
+            :key="app.id"
+            :xs="12"
+            :sm="8"
+            :md="6"
+            :lg="4"
+            style="margin-bottom: 14px"
+          >
             <el-card shadow="hover" class="app-card" @click="viewDetail(app)">
               <div class="app-icon">
                 <img v-if="app.icon" :src="app.icon" :alt="app.name" />
@@ -44,20 +84,36 @@
               </div>
               <div class="app-name">{{ app.name }}</div>
               <div class="app-desc">{{ app.description || app.id }}</div>
-              <el-tag size="small" :type="catTagType(app.category)" class="app-cat">{{ app.category }}</el-tag>
+              <div class="app-meta">
+                <el-tag size="small" :type="catTagType(app.category)" class="app-cat">{{ app.category }}</el-tag>
+              </div>
               <div class="app-footer">
-                <el-tag v-if="app.installed" size="small" type="success">已安装</el-tag>
+                <el-tag v-if="app.installed" size="small" type="success" effect="dark" class="installed-tag">已安装</el-tag>
                 <span v-else class="app-version">v{{ app.version }}</span>
               </div>
             </el-card>
           </el-col>
         </el-row>
         <el-empty v-if="!loading && apps.length === 0" description="暂无应用" />
+
+        <!-- 分页 -->
+        <div v-if="totalApps > pageSize" class="pagination-row">
+          <el-pagination
+            v-model:current-page="currentPage"
+            v-model:page-size="pageSize"
+            :total="totalApps"
+            :page-sizes="[30, 60, 90]"
+            layout="total, sizes, prev, pager, next, jumper"
+            background
+            @size-change="fetchApps"
+            @current-change="fetchApps"
+          />
+        </div>
       </el-tab-pane>
 
       <el-tab-pane label="已安装" name="installed">
-        <el-table :data="installedApps" stripe v-loading="installedLoading">
-          <el-table-column prop="name" label="名称" min-width="150" />
+        <el-table :data="installedApps" stripe v-loading="installedLoading" style="width: 100%">
+          <el-table-column prop="name" label="名称" min-width="160" />
           <el-table-column label="状态" width="100">
             <template #default="{ row }">
               <el-tag v-if="row.status === 'running'" size="small" type="success">运行中</el-tag>
@@ -65,8 +121,9 @@
               <el-tag v-else size="small" type="warning">未知</el-tag>
             </template>
           </el-table-column>
+          <el-table-column prop="category" label="分类" width="100" />
           <el-table-column prop="version" label="版本" width="80" />
-          <el-table-column label="更新" width="100">
+          <el-table-column label="更新" width="110">
             <template #default="{ row }">
               <el-tag v-if="row.has_update" type="danger" size="small">
                 {{ row.available_version }} 可用
@@ -74,7 +131,7 @@
               <span v-else class="text-muted">最新版</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="280" fixed="right">
+          <el-table-column label="操作" width="300" fixed="right">
             <template #default="{ row }">
               <el-button size="small" type="success" @click="startApp(row)" :loading="row._operating === 'start'">启动</el-button>
               <el-button size="small" type="warning" @click="stopApp(row)" :loading="row._operating === 'stop'">停止</el-button>
@@ -242,19 +299,24 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { api } from '@/stores'
 import { Search, Refresh, Plus, Setting, Monitor } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const loading = ref(false)
 const apps = ref([])
+const totalApps = ref(0)
+const currentPage = ref(1)
+const pageSize = ref(60)
 const categories = ref([])
 const installedApps = ref([])
 const installedLoading = ref(false)
 const searchQuery = ref('')
 const selectedCategory = ref('')
+const selectedTag = ref('')
 const activeTab = ref('market')
+const visibleTagCount = ref(7)
 
 const detailDialog = ref({ visible: false, app: null })
 const installDialog = ref({ visible: false, app: null })
@@ -268,6 +330,43 @@ const showAddRepo = ref(false)
 const newRepo = ref({ name: '', url: '' })
 const addingRepo = ref(false)
 const syncing = ref(false)
+
+// ─── 标签筛选（类似 1Panel 风格） ──────────────
+
+const visibleTags = computed(() => {
+  // 先排"其他"到末尾
+  const sorted = [...categories.value].sort((a, b) => {
+    if (a === '其他') return 1
+    if (b === '其他') return -1
+    return 0
+  })
+  return sorted.slice(0, visibleTagCount.value)
+})
+
+const hiddenTags = computed(() => {
+  const tags = categories.value.filter(t => !visibleTags.value.includes(t))
+  return tags
+})
+
+const moreTag = computed(() => {
+  if (selectedTag.value && hiddenTags.value.includes(selectedTag.value)) {
+    return selectedTag.value
+  }
+  return ''
+})
+
+const moreTagLabel = computed(() => {
+  return selectedTag.value ? selectedTag.value : '更多'
+})
+
+function changeTag(tag) {
+  selectedTag.value = tag
+  selectedCategory.value = tag
+  currentPage.value = 1
+  fetchApps()
+}
+
+// ─── 分类颜色映射 ────────────────────────────
 
 function catTagType(cat) {
   const map = {
@@ -300,14 +399,17 @@ function catTagType(cat) {
   return map[cat] || 'info'
 }
 
+// ─── API ──────────────────────────────────────
+
 async function fetchApps() {
   loading.value = true
   try {
-    const params = {}
+    const params = { page: currentPage.value, page_size: pageSize.value }
     if (searchQuery.value) params.search = searchQuery.value
     if (selectedCategory.value) params.category = selectedCategory.value
     const res = await api.get('/appstore/apps', { params })
     apps.value = res.data.apps || []
+    totalApps.value = res.data.total || 0
     categories.value = res.data.categories || []
   } catch (e) {
     ElMessage.error('获取应用列表失败')
@@ -318,7 +420,8 @@ async function fetchApps() {
 async function fetchInstalled() {
   installedLoading.value = true
   try {
-    const res = await api.get('/appstore/installed')
+    const params = { page: 1, page_size: 200 }
+    const res = await api.get('/appstore/installed', { params })
     // 尝试获取运行状态
     const containers = []
     try {
@@ -327,7 +430,6 @@ async function fetchInstalled() {
     } catch {}
     installedApps.value = (res.data.apps || []).map(app => {
       app._operating = ''
-      // Search containers for this app's compose project
       const running = containers.some(c => c.compose_project === app.id && c.status === 'running')
       app.status = running ? 'running' : 'stopped'
       return app
@@ -499,28 +601,80 @@ onMounted(() => {
 .appstore-page { padding: 0; }
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .page-header h2 { margin: 0; font-size: 20px; }
-.toolbar { display: flex; gap: 12px; margin-bottom: 20px; align-items: center; flex-wrap: wrap; }
+
+/* 工具行（标签+搜索） */
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.tag-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+.tag-row .el-check-tag {
+  flex-shrink: 0;
+}
+.more-tag { flex-shrink: 0; }
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 统计条 */
+.stats-bar {
+  font-size: 13px;
+  color: #888;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.stats-divider { color: #333; }
+.pagination-hint { color: #666; font-size: 12px; }
+
+/* 应用卡片 */
 .app-card { cursor: pointer; text-align: center; padding: 8px; transition: transform 0.2s; }
 .app-card:hover { transform: translateY(-2px); }
 .app-icon { height: 64px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
 .app-icon img { max-width: 48px; max-height: 48px; }
 .app-name { font-size: 14px; font-weight: 500; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .app-desc { font-size: 12px; color: #999; margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.app-cat { margin-bottom: 8px; }
-.app-footer { margin-top: 8px; }
-.app-version { font-size: 12px; color: #666; }
+.app-meta { margin-bottom: 8px; }
+.app-cat { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.app-footer { display: flex; justify-content: center; align-items: center; }
+.app-version { font-size: 11px; color: #666; }
+.installed-tag { font-size: 11px; }
+
+/* 详情弹窗 */
+.detail-header { display: flex; gap: 20px; align-items: flex-start; }
+.detail-icon { width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.detail-icon img { max-width: 80px; max-height: 80px; }
+.detail-meta h3 { margin: 0 0 8px; font-size: 20px; }
+.detail-meta p { margin: 0 0 12px; color: #999; font-size: 14px; }
+.meta-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.config-section { margin: 16px 0; }
+.config-section h4 { margin: 0 0 8px; font-size: 14px; color: #ccc; }
+.detail-actions { margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end; }
+.form-help { font-size: 12px; color: #888; margin-top: 2px; }
+
+/* 仓库管理 */
+.repo-header { display: flex; gap: 8px; margin-bottom: 16px; }
+.add-repo-form { margin-bottom: 16px; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; }
+.repo-url { color: #409EFF; font-size: 12px; text-decoration: none; }
+
+/* 分页 */
+.pagination-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+/* 已安装页 */
 .text-muted { color: #666; }
-.detail-header { display: flex; gap: 20px; }
-.detail-icon { width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; }
-.detail-icon img { max-width: 64px; max-height: 64px; }
-.detail-meta h3 { margin: 0 0 8px 0; font-size: 20px; }
-.detail-meta p { color: #999; margin: 0 0 12px 0; }
-.meta-tags { display: flex; gap: 8px; flex-wrap: wrap; }
-.config-section h4 { margin: 0 0 8px 0; color: #ccc; }
-.form-help { font-size: 12px; color: #888; margin-top: 4px; }
-.detail-actions { margin-top: 20px; display: flex; gap: 12px; justify-content: flex-end; }
-.repo-header { display: flex; gap: 12px; margin-bottom: 16px; align-items: center; }
-.add-repo-form { padding: 16px; background: #1a1a1a; border-radius: 6px; margin-bottom: 16px; }
-.repo-url { color: #409EFF; text-decoration: none; font-size: 12px; }
-.repo-url:hover { text-decoration: underline; }
 </style>

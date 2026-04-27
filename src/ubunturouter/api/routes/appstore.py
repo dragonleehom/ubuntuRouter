@@ -22,9 +22,11 @@ router = APIRouter()
 async def list_apps(
     category: str = Query("", description="分类筛选"),
     search: str = Query("", description="搜索关键词"),
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(60, ge=1, le=200, description="每页数量"),
     auth=Depends(require_auth),
 ):
-    """获取应用列表"""
+    """获取应用列表（支持分页、分类筛选、搜索）"""
     # 确保官方仓库已拉取
     ensure_official_repo()
 
@@ -47,6 +49,13 @@ async def list_apps(
 
     categories = get_categories(apps)
 
+    # 分页
+    sorted_items = sorted(apps.items())
+    total = len(sorted_items)
+    start = (page - 1) * page_size
+    end = start + page_size
+    page_items = sorted_items[start:end]
+
     return {
         "apps": [
             {
@@ -62,9 +71,11 @@ async def list_apps(
                 "installed": m.installed,
                 "installed_version": m.installed_version,
             }
-            for app_id, m in sorted(apps.items())
+            for app_id, m in page_items
         ],
-        "total": len(apps),
+        "total": total,
+        "page": page,
+        "page_size": page_size,
         "categories": categories,
     }
 
@@ -110,8 +121,12 @@ async def get_app_detail(app_id: str, auth=Depends(require_auth)):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/installed")
-async def list_installed_apps(auth=Depends(require_auth)):
-    """获取已安装应用列表"""
+async def list_installed_apps(
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(50, ge=1, le=200, description="每页数量"),
+    auth=Depends(require_auth),
+):
+    """获取已安装应用列表（支持分页）"""
     apps = scan_all_repos()
     installed_ids = get_installed_apps()
 
@@ -141,7 +156,17 @@ async def list_installed_apps(auth=Depends(require_auth)):
                 "description": "",
             })
 
-    return {"apps": result, "total": len(result)}
+    # 分页
+    total = len(result)
+    start = (page - 1) * page_size
+    end = start + page_size
+
+    return {
+        "apps": result[start:end],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 @router.post("/apps/{app_id}/install")
