@@ -322,9 +322,16 @@ def parse_onepanel_manifest(manifest_path: Path) -> Optional[AppManifest]:
         return None
 
     # 路径: .../apps/{app_name}/{version}/data.yml
-    parent_name = manifest_path.parent.name      # version 目录
-    grandparent = manifest_path.parent.parent     # app 目录
-    app_id = grandparent.name if grandparent.exists() else parent_name
+    # 注意：如果是软链接（已安装应用），parent_name 是 app_id，grandparent 是 installed 目录
+    # 所以优先用 parent_name（目录名），如果 grandparent 是 installed 目录也用 parent_name
+    parent_name = manifest_path.parent.name      # app id 或 version 目录
+    grandparent = manifest_path.parent.parent     # app 目录或 installed 目录
+    is_symlink_path = manifest_path.parent.is_symlink() or manifest_path.parent.parent.is_symlink()
+    # 通过软链接访问时，parent_name 就是 app_id；直接访问仓库时，grandparent.name 是 app_id
+    if is_symlink_path or grandparent.name in ('installed', 'apps'):
+        app_id = parent_name
+    else:
+        app_id = grandparent.name if grandparent.exists() else parent_name
 
     name = data.get("title", data.get("name", app_id))
     description = data.get("description", "")
