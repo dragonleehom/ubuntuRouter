@@ -81,18 +81,18 @@ def precheck(manifest: AppManifest) -> Dict:
 
 class InstallRollback:
     """安装回滚上下文管理器
-    
+
     记录安装过程中的每步操作，失败时按逆序清理。
     """
-    
+
     def __init__(self, app_id: str):
         self.app_id = app_id
         self._steps: list = []  # [(description, cleanup_callable), ...]
-    
+
     def record(self, description: str, cleanup: Optional[Callable] = None):
         """记录一个步骤，可选清理函数"""
         self._steps.append((description, cleanup))
-    
+
     def rollback(self):
         """逆序执行所有清理操作"""
         for desc, cleanup in reversed(self._steps):
@@ -149,11 +149,34 @@ def install(manifest: AppManifest, env_override: Optional[Dict] = None,
             return {"success": False, "error": f"安装路径 '{target_dir}' 已存在且非目录"}
         progress(20, "目录已创建")
 
-        # ── 第 2 步: 写入 .env 文件 ──
+        # ── 第 2 步: 写入 .env 文件（含默认值 + 用户覆盖 + 自动补全） ──
         env_path = target_dir / ".env"
+
+        # 2a. 先从 manifest.env_vars 提取默认值
+        env_defaults = {}
+        for var in manifest.env_vars:
+            key = var.get("name", "")
+            default = var.get("default", "")
+            if key:
+                env_defaults[key] = default
+
+        # 2b. 用户覆盖值
         if env_override:
+            env_defaults.update(env_override)
+
+        # 2c. 自动补全 1Panel 的 CONTAINER_NAME（docker-compose.yml 中必用）
+        if "CONTAINER_NAME" not in env_defaults:
+            env_defaults["CONTAINER_NAME"] = f"ubunturouter-{app_id}"
+
+        # 2d. 扫描 compose 中引用的所有变量，自动生成未提供的 PANEL_* 和默认值
+        compose_path = source_dir / manifest.compose_file
+        if compose_path.exists():
+            _auto_fill_required_env(compose_path, env_defaults, app_id)
+
+        # 2e. 写入 .env
+        if env_defaults:
             env_lines = []
-            for key, value in env_override.items():
+            for key, value in env_defaults.items():
                 env_lines.append(f"{key}={value}")
             env_path.write_text("\n".join(env_lines) + "\n", encoding="utf-8")
             rollback.record("写入 .env", lambda: env_path.unlink() if env_path.exists() else None)
@@ -247,9 +270,69 @@ def install(manifest: AppManifest, env_override: Optional[Dict] = None,
         }
 
 
+def _auto_fill_required_env(compose_path: Path, env_dict: dict, app_id: str):
+    """Auto-fill missing env variables referenced in docker-compose.yml.
+
+    1Panel apps use $PANEL_APP_PORT_HTTP, $PANEL_* variables that may not be
+    defined in data.yml but are required by docker-compose.yml.
+    Scans for ${VAR_NAME} references and generates reasonable defaults.
+    """
+    import re
+    try:
+        content = compose_path.read_text(encoding="utf-8")
+        refs = set(re.findall(r'\$\{(\w+)\}', content))
+        if not refs:
+            return
+
+        for ref in refs:
+            if ref not in env_dict or env_dict[ref] == "":
+                if ref == "PANEL_APP_PORT_HTTP":
+                    env_dict[ref] = "8181"
+                    _try_find_available_port(env_dict, ref)
+                elif ref == "PANEL_TORRENTING_PORT":
+                    env_dict[ref] = "48181"
+                    _try_find_available_port(env_dict, ref)
+                elif ref == "PANEL_APP_PORT_HTTPS":
+                    env_dict[ref] = "8443"
+                    _try_find_available_port(env_dict, ref)
+                elif ref == "PANEL_APP_PORT_SSH":
+                    env_dict[ref] = "2222"
+                    _try_find_available_port(env_dict, ref)
+                elif ref == "TIME_ZONE":
+                    env_dict[ref] = "Asia/Shanghai"
+                elif ref == "CONTAINER_NAME":
+                    env_dict[ref] = f"ubunturouter-{app_id}"
+                elif ref.startswith("PANEL_"):
+                    env_dict[ref] = "19000"
+                else:
+                    env_dict[ref] = ""
+    except Exception:
+        pass
+
+
+def _try_find_available_port(env_dict: dict, key: str):
+    """Find next available port if default is in use."""
+    import socket
+    base = int(env_dict.get(key, 0))
+    if not base:
+        return
+    for port in range(base, base + 100):
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(1)
+            result = sock.connect_ex(("127.0.0.1", port))
+            sock.close()
+            if result != 0:
+                env_dict[key] = str(port)
+                return
+        except Exception:
+            pass
+    env_dict[key] = str(base)
+
+
 def _health_check(manifest: AppManifest, install_dir: Path) -> Dict:
     """安装后健康检查
-    
+
     检查策略：
     1. Docker 容器是否正在运行
     2. 容器是否通过健康检查
