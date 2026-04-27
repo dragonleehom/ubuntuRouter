@@ -203,7 +203,7 @@
     </el-dialog>
 
     <!-- 安装配置对话框 -->
-    <el-dialog v-model="installDialog.visible" title="安装配置" width="700px">
+    <el-dialog v-model="installDialog.visible" title="安装配置 - v2.0（支持自定义参数）" width="700px">
       <el-form :model="installForm" label-width="120px" v-if="installDialog.app">
         <!-- 应用定义的 env_vars -->
         <el-divider content-position="left">环境变量</el-divider>
