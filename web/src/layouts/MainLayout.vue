@@ -42,7 +42,7 @@
           <el-menu-item index="/status/realtime">实时流量</el-menu-item>
           <el-menu-item index="/status/traffic">流量监控</el-menu-item>
           <el-menu-item index="/status/syslog">系统日志</el-menu-item>
-          <el-menu-item index="/status/processes">进程管理</el-menu-item>
+          <el-menu-item index="/status/processes">在线设备</el-menu-item>
         </el-sub-menu>
 
         <!-- 3. 网络配置 -->

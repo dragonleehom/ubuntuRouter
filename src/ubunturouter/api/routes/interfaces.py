@@ -588,3 +588,67 @@ def _load_firewall_zones() -> dict:
         pass
 
     return zone_map
+
+
+class CreateInterfaceRequest(BaseModel):
+    """新建接口请求"""
+    name: str = Field(..., min_length=1, max_length=32, description="接口/连接名称")
+    type: str = Field("bridge", pattern="^(bridge|bond|vlan|dummy|macvlan)$")
+    parent: Optional[str] = Field(None, description="父接口（vlan/bridge 需要）")
+    vid: Optional[int] = Field(None, ge=1, le=4094, description="VLAN ID（vlan 需要）")
+    ipv4_method: str = Field("dhcp", pattern="^(dhcp|static|disabled)$")
+    address: Optional[str] = Field(None, description="静态 IP (CIDR)")
+    gateway: Optional[str] = Field(None, description="网关")
+    dns: List[str] = Field(default_factory=list, description="DNS 服务器列表")
+    mtu: Optional[int] = Field(None, ge=68, le=9000, description="MTU")
+
+
+@router.post("/create")
+async def create_interface(body: CreateInterfaceRequest, auth=Depends(require_auth)):
+    """新建虚拟接口（bridge/vlan/bond/dummy/macvlan）"""
+    try:
+        if body.type == "bridge":
+            cmd = ["ip", "link", "add", "name", body.name, "type", "bridge"]
+        elif body.type == "vlan":
+            if not body.parent or not body.vid:
+                raise HTTPException(400, "VLAN 接口需要 parent 和 vid")
+            cmd = ["ip", "link", "add", "link", body.parent, "name", body.name, "type", "vlan", "id", str(body.vid)]
+        elif body.type == "dummy":
+            cmd = ["ip", "link", "add", "name", body.name, "type", "dummy"]
+        elif body.type == "macvlan":
+            if not body.parent:
+                raise HTTPException(400, "macvlan 接口需要 parent")
+            cmd = ["ip", "link", "add", "link", body.parent, "name", body.name, "type", "macvlan"]
+        elif body.type == "bond":
+            cmd = ["ip", "link", "add", "name", body.name, "type", "bond"]
+        else:
+            raise HTTPException(400, f"不支持的接口类型: {body.type}")
+
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        if r.returncode != 0:
+            raise HTTPException(500, f"创建接口失败: {r.stderr.strip() or r.stdout.strip()}")
+
+        # 启动物理层
+        subprocess.run(["ip", "link", "set", body.name, "up"], capture_output=True, timeout=5)
+
+        # IP 配置
+        if body.ipv4_method == "static" and body.address:
+            addr_cmd = ["ip", "addr", "add", body.address, "dev", body.name]
+            subprocess.run(addr_cmd, capture_output=True, timeout=5)
+            if body.gateway:
+                subprocess.run(["ip", "route", "add", "default", "via", body.gateway, "dev", body.name],
+                               capture_output=True, timeout=5)
+        elif body.ipv4_method == "dhcp":
+            subprocess.run(["dhclient", "-v", body.name], capture_output=True, timeout=15)
+
+        # MTU
+        if body.mtu:
+            subprocess.run(["ip", "link", "set", "dev", body.name, "mtu", str(body.mtu)],
+                           capture_output=True, timeout=5)
+
+        return {"success": True, "message": f"接口 {body.name} 已创建", "interface": body.name}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"创建接口失败: {e}")

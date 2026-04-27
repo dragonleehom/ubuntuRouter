@@ -206,6 +206,10 @@ _CATEGORY_I18N = {
     "database": "数据库", "tool": "工具", "runtime": "运行环境",
     "middleware": "中间件", "storage": "存储", "network": "网络",
     "business": "商业软件", "website": "网站",
+    "monitor": "系统监控", "download": "下载工具", "nas": "NAS",
+    "service": "服务", "messaging": "消息通讯", "server": "服务器",
+    "multimedia": "多媒体", "ai": "人工智能", "networking": "网络工具",
+    "security": "安全", "development": "开发工具",
 }
 
 

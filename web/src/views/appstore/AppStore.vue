@@ -270,7 +270,24 @@ const addingRepo = ref(false)
 const syncing = ref(false)
 
 function catTagType(cat) {
-  const map = { '网络安全': 'danger', '存储': 'warning', '工具': 'info', '开发': '', '多媒体': 'success' }
+  const map = {
+    '网络安全': 'danger', '安全': 'danger',
+    '存储': 'warning', 'NAS': 'warning',
+    '工具': 'info', '下载工具': 'info',
+    '开发': '', '开发工具': '',
+    '多媒体': 'success',
+    '网络': 'primary', '网络工具': 'primary',
+    '数据库': '',
+    '中间件': '',
+    '系统监控': 'success',
+    '消息通讯': '',
+    '服务器': 'warning',
+    '人工智能': 'danger',
+    '商业软件': '',
+    '运行环境': '',
+    '服务': 'info',
+    '网站': '',
+  }
   return map[cat] || 'info'
 }
 

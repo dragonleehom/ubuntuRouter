@@ -50,8 +50,8 @@ export default [
       {
         path: 'processes',
         name: 'StatusProcesses',
-        meta: { title: '进程管理' },
-        component: () => import('@/views/StatusProcessPlaceholder.vue'), // 临时占位
+        meta: { title: '在线设备' },
+        component: () => import('@/views/OnlineDevices.vue'),
       },
     ],
   },

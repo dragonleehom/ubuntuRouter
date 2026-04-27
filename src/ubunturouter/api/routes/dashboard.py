@@ -220,18 +220,39 @@ def _get_iface_stats() -> list:
                     addr_info.append(f"{a['local']}/{a['prefixlen']}")
             addr_map[name] = addr_info
 
+        # 读取 /proc/net/dev 流量数据
+        traffic_map = {}
+        try:
+            with open("/proc/net/dev") as f:
+                for line in f.readlines()[2:]:
+                    parts = line.strip().split(":")
+                    if len(parts) == 2:
+                        name = parts[0].strip()
+                        vals = parts[1].split()
+                        if len(vals) >= 9:
+                            traffic_map[name] = {
+                                "rx_bytes": int(vals[0]),
+                                "tx_bytes": int(vals[8]),
+                            }
+        except Exception:
+            pass
+
         for link in links:
             name = link.get("ifname", "")
             if name == "lo":
                 continue
-            ifaces.append({
+            entry = {
                 "name": name,
                 "mac": link.get("address", ""),
                 "state": "UP" if link.get("operstate") == "UP" else "DOWN",
                 "mtu": link.get("mtu", 1500),
                 "ipv4": addr_map.get(name, []),
                 "speed": _get_iface_speed(name),
-            })
+            }
+            if name in traffic_map:
+                entry["rx_bytes"] = traffic_map[name]["rx_bytes"]
+                entry["tx_bytes"] = traffic_map[name]["tx_bytes"]
+            ifaces.append(entry)
     except Exception as e:
         ifaces.append({"error": str(e)})
 

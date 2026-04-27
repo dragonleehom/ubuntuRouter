@@ -7,6 +7,9 @@
         <span class="header-subtitle">配置、管理网络端口和连接协议</span>
       </div>
       <div class="header-actions">
+        <el-button type="success" @click="showCreateDialog = true" round>
+          <el-icon><Plus /></el-icon> 新建接口
+        </el-button>
         <el-button :type="refreshing ? 'default' : 'primary'" :loading="refreshing" @click="refreshAll" round>
           <el-icon><Refresh /></el-icon> 刷新
         </el-button>
@@ -106,6 +109,14 @@
             <span class="detail-value" :class="{ 'text-muted': !p.ipv4 || !p.ipv4.length }">
               {{ p.ipv4 && p.ipv4.length ? p.ipv4.join(', ') : '未配置' }}
             </span>
+          </div>
+          <div class="detail-row" v-if="p.rx_bytes !== undefined">
+            <span class="detail-label">接收</span>
+            <span class="detail-value mono">{{ formatBytes(p.rx_bytes) }}</span>
+          </div>
+          <div class="detail-row" v-if="p.tx_bytes !== undefined">
+            <span class="detail-label">发送</span>
+            <span class="detail-value mono">{{ formatBytes(p.tx_bytes) }}</span>
           </div>
         </div>
 
@@ -454,6 +465,50 @@
         </div>
       </div>
     </el-drawer>
+
+    <!-- ─────────────── 新建接口对话框 ─────────────── -->
+    <el-dialog v-model="showCreateDialog" title="新建虚拟接口" width="520px">
+      <el-form :model="createForm" label-width="100px">
+        <el-form-item label="接口类型" required>
+          <el-select v-model="createForm.type" style="width: 100%">
+            <el-option label="Bridge 桥接" value="bridge" />
+            <el-option label="VLAN" value="vlan" />
+            <el-option label="Dummy 虚拟" value="dummy" />
+            <el-option label="MACVLAN" value="macvlan" />
+            <el-option label="Bond 绑定" value="bond" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="接口名称" required>
+          <el-input v-model="createForm.name" placeholder="如: br0, vlan10" />
+        </el-form-item>
+        <el-form-item v-if="createForm.type === 'vlan' || createForm.type === 'macvlan'" label="父接口" required>
+          <el-input v-model="createForm.parent" placeholder="如: eth0, ens3" />
+        </el-form-item>
+        <el-form-item v-if="createForm.type === 'vlan'" label="VLAN ID" required>
+          <el-input-number v-model="createForm.vid" :min="1" :max="4094" />
+        </el-form-item>
+        <el-form-item label="IP 分配">
+          <el-select v-model="createForm.ipv4_method" style="width: 100%">
+            <el-option label="DHCP 自动获取" value="dhcp" />
+            <el-option label="静态 IP" value="static" />
+            <el-option label="不分配" value="disabled" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="createForm.ipv4_method === 'static'" label="IP 地址">
+          <el-input v-model="createForm.address" placeholder="如: 192.168.10.1/24" />
+        </el-form-item>
+        <el-form-item v-if="createForm.ipv4_method === 'static'" label="网关">
+          <el-input v-model="createForm.gateway" placeholder="如: 192.168.10.254" />
+        </el-form-item>
+        <el-form-item label="MTU">
+          <el-input-number v-model="createForm.mtu" :min="68" :max="9000" :step="100" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showCreateDialog = false">取消</el-button>
+        <el-button type="success" @click="doCreateInterface" :loading="creating">创建</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -473,6 +528,19 @@ const showEdit = ref(false)
 const saving = ref(false)
 const showPortDrawer = ref(false)
 const portDetail = ref(null)
+const showCreateDialog = ref(false)
+const creating = ref(false)
+const createForm = reactive({
+  type: 'bridge',
+  name: '',
+  parent: '',
+  vid: 1,
+  ipv4_method: 'dhcp',
+  address: '',
+  gateway: '',
+  dns: [],
+  mtu: 1500,
+})
 const trafficData = ref({})      // 流量缓存 { ifname: { rx_bytes, tx_bytes } }
 const flashingIfaces = ref({})   // 闪烁状态 { ifname: true/false }
 let trafficTimer = null          // setInterval 句柄
@@ -511,6 +579,14 @@ function getVirtualIcon(p) {
 // 判断接口是否有数据流闪烁
 function isFlashing(ifname) {
   return flashingIfaces.value[ifname] || false
+}
+
+function formatBytes(bytes) {
+  if (bytes === undefined || bytes === null) return '--'
+  if (bytes === 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(1024))
+  return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + units[i]
 }
 
 // 轮询流量
@@ -689,6 +765,26 @@ onMounted(() => {
   // 启动流量轮询（1秒间隔，纯读 /proc/net/dev 无资源开销）
   trafficTimer = setInterval(pollTraffic, 1000)
 })
+
+async function doCreateInterface() {
+  if (!createForm.name.trim()) { ElMessage.warning('请输入接口名称'); return }
+  creating.value = true
+  try {
+    const payload = { ...createForm }
+    // 清理不需要的字段
+    if (payload.type !== 'vlan') delete payload.vid
+    if (payload.type !== 'vlan' && payload.type !== 'macvlan') delete payload.parent
+    if (payload.ipv4_method !== 'static') { delete payload.address; delete payload.gateway }
+
+    const res = await api.post('/interfaces/create', payload)
+    ElMessage.success(res.data.message || '接口创建成功')
+    showCreateDialog.value = false
+    await fetchInterfaces()
+  } catch (e) {
+    ElMessage.error('创建失败: ' + (e.response?.data?.detail || e.message))
+  }
+  creating.value = false
+}
 
 onUnmounted(() => {
   if (trafficTimer) clearInterval(trafficTimer)

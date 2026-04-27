@@ -30,6 +30,13 @@
           <div class="stat-label">运行时间</div>
         </div>
       </div>
+      <div class="stat-card glass-card">
+        <div class="stat-icon temp"><WarningFilled /></div>
+        <div class="stat-body">
+          <div class="stat-value">{{ temperature }}<span class="unit">°C</span></div>
+          <div class="stat-label">CPU 温度</div>
+        </div>
+      </div>
     </div>
 
     <!-- 快捷操作面板 -->
@@ -139,7 +146,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { api, useAuthStore } from '@/stores'
 import {
   Cpu, Coin, Folder, Timer, Refresh, Download, Top,
-  RefreshRight, SwitchButton,
+  RefreshRight, SwitchButton, WarningFilled,
 } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import 'echarts'
@@ -184,6 +191,10 @@ const uptimeShort = computed(() => {
   const h = Math.floor((sec % 86400) / 3600)
   if (d > 0) return `${d}d ${h}h`
   return `${h}h`
+})
+const temperature = computed(() => {
+  const t = system.value.temperature_c
+  return t !== null && t !== undefined ? t.toFixed(1) : '--'
 })
 
 // --- 实时流量（WS）---
@@ -415,6 +426,7 @@ onUnmounted(() => {
 .stat-icon.mem { background: rgba(74,222,128,0.1); color: #16a34a; }
 .stat-icon.disk { background: rgba(245,158,11,0.1); color: #d97706; }
 .stat-icon.uptime { background: rgba(139,92,246,0.1); color: #7c3aed; }
+.stat-icon.temp { background: rgba(239,68,68,0.1); color: #dc2626; }
 
 .stat-body { min-width: 0; }
 .stat-value {

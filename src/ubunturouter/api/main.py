@@ -19,6 +19,7 @@ from .routes import dns as dns_routes
 from .routes import diag as diag_routes
 from .routes import backup as backup_routes
 from .routes import wireless as wireless_routes
+from .routes import arp as arp_routes
 from .ws import dashboard as ws_dashboard
 from .auth import jwt as jwt_auth
 from .tls import init_https
@@ -68,6 +69,7 @@ def create_app() -> FastAPI:
     app.include_router(diag_routes.router, prefix="/api/v1/diag", tags=["Diagnostics"])
     app.include_router(backup_routes.router, prefix="/api/v1/backup", tags=["Backup"])
     app.include_router(wireless_routes.router, prefix="/api/v1/wireless", tags=["Wireless"])
+    app.include_router(arp_routes.router, prefix="/api/v1/arp", tags=["ARP"])
 
     # WebSocket
     app.add_api_websocket_route("/api/v1/ws/dashboard", ws_dashboard.websocket_endpoint)
