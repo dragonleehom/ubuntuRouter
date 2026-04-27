@@ -8,7 +8,7 @@ from ...appstore import (
     scan_all_repos, get_installed_apps, get_categories,
     search_apps, install, uninstall, update, precheck,
     list_repos, sync_all_repos, sync_repo, add_repo, remove_repo,
-    ensure_official_repo,
+    ensure_official_repo, start_app, stop_app,
 )
 
 router = APIRouter()
@@ -257,6 +257,24 @@ async def precheck_app(app_id: str, auth=Depends(require_auth)):
         raise HTTPException(status_code=404, detail=f"应用 '{app_id}' 未找到")
     check = precheck(apps[app_id])
     return check
+
+
+@router.post("/apps/{app_id}/start")
+async def start_installed_app(app_id: str, auth=Depends(require_auth)):
+    """启动已安装的应用"""
+    result = start_app(app_id)
+    if not result["success"]:
+        raise HTTPException(status_code=500, detail=result.get("error", "启动失败"))
+    return result
+
+
+@router.post("/apps/{app_id}/stop")
+async def stop_installed_app(app_id: str, auth=Depends(require_auth)):
+    """停止已安装的应用"""
+    result = stop_app(app_id)
+    if not result["success"]:
+        raise HTTPException(status_code=500, detail=result.get("error", "停止失败"))
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

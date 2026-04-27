@@ -10,4 +10,4 @@ from .repo import (
     verify_repo_compatibility,
 )
 from .installer import precheck, install
-from .updater import update, uninstall
+from .updater import update, uninstall, start_app, stop_app

@@ -181,3 +181,31 @@ def update(app_id: str) -> Dict:
             "success": False,
             "error": f"更新失败: {str(e)}",
         }
+
+
+def start_app(app_id: str) -> Dict:
+    """启动已安装的应用容器"""
+    compose_dir = INSTALLED_DIR / app_id
+    if not compose_dir.exists():
+        return {"success": False, "error": f"应用 '{app_id}' 未安装"}
+
+    try:
+        manager = ComposeManager(str(compose_dir))
+        manager.up()
+        return {"success": True, "message": f"应用 '{app_id}' 已启动"}
+    except Exception as e:
+        return {"success": False, "error": f"启动失败: {str(e)}"}
+
+
+def stop_app(app_id: str) -> Dict:
+    """停止已安装的应用容器"""
+    compose_dir = INSTALLED_DIR / app_id
+    if not compose_dir.exists():
+        return {"success": False, "error": f"应用 '{app_id}' 未安装"}
+
+    try:
+        manager = ComposeManager(str(compose_dir))
+        manager.stop()
+        return {"success": True, "message": f"应用 '{app_id}' 已停止"}
+    except Exception as e:
+        return {"success": False, "error": f"停止失败: {str(e)}"}

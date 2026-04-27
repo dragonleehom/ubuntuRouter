@@ -274,6 +274,31 @@
           </div>
         </el-form>
 
+        <!-- 已安装应用的配置展示（只读） -->
+        <div v-if="detailDialog.app.installed && detailDialog.app.env_vars?.length" class="config-section">
+          <h4>环境变量</h4>
+          <div v-for="ev in detailDialog.app.env_vars" :key="ev.name" class="installed-env-row">
+            <span class="env-key">{{ ev.label || ev.name }}</span>
+            <span class="env-val">{{ ev.default || '-' }}</span>
+          </div>
+        </div>
+
+        <div v-if="detailDialog.app.installed && (detailDialog.app.ports?.length || detailDialog.app.volumes?.length)" class="config-section">
+          <h4 v-if="detailDialog.app.ports?.length">端口映射</h4>
+          <el-table v-if="detailDialog.app.ports?.length" :data="detailDialog.app.ports" size="small">
+            <el-table-column prop="label" label="名称" />
+            <el-table-column prop="host_port" label="主机端口" width="100" />
+            <el-table-column prop="container_port" label="容器端口" width="100" />
+            <el-table-column prop="protocol" label="协议" width="80" />
+          </el-table>
+          <h4 v-if="detailDialog.app.volumes?.length" style="margin-top:16px">数据卷</h4>
+          <el-table v-if="detailDialog.app.volumes?.length" :data="detailDialog.app.volumes" size="small">
+            <el-table-column prop="label" label="说明" />
+            <el-table-column prop="container_path" label="容器路径" />
+            <el-table-column prop="host_path" label="主机路径" />
+          </el-table>
+        </div>
+
         <div class="detail-actions">
           <el-button v-if="detailDialog.app.installed" type="danger" @click="uninstallApp(detailDialog.app)">卸载</el-button>
           <el-button v-else type="primary" size="large" @click="doInstallFromDetail" :loading="installing">安装</el-button>
@@ -483,7 +508,6 @@ async function fetchInstalled() {
     const res = await api.get('/appstore/installed', { params })
     installedApps.value = (res.data.apps || []).map(app => {
       app._operating = ''
-      app.status = 'unknown'
       return app
     })
   } catch (e) {
@@ -570,7 +594,7 @@ async function uninstallApp(app) {
 async function startApp(row) {
   row._operating = 'start'
   try {
-    const res = await api.post(`/appstore/apps/${row.id}/install`, {})
+    const res = await api.post(`/appstore/apps/${row.id}/start`)
     ElMessage.success(res.data.message || '已启动')
     await fetchInstalled()
   } catch (e) {
@@ -582,8 +606,8 @@ async function startApp(row) {
 async function stopApp(row) {
   row._operating = 'stop'
   try {
-    const res = await api.post(`/appstore/apps/${row.id}/uninstall?keep_data=true`)
-    ElMessage.success('已停止')
+    const res = await api.post(`/appstore/apps/${row.id}/stop`)
+    ElMessage.success(res.data.message || '已停止')
     await fetchInstalled()
   } catch (e) {
     ElMessage.error(e.response?.data?.detail || '停止失败')
@@ -767,6 +791,23 @@ onMounted(async () => {
   align-items: center;
   margin-bottom: 8px;
   padding-left: 8px;
+}
+
+/* 已安装应用的只读配置行 */
+.installed-env-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.installed-env-row .env-key {
+  font-weight: 500;
+  min-width: 160px;
+  color: #ccc;
+}
+.installed-env-row .env-val {
+  color: #999;
+  font-family: monospace;
 }
 
 /* 安装对话框分隔线 */
