@@ -80,7 +80,8 @@
             <el-card shadow="hover" class="app-card" @click="viewDetail(app)">
               <div class="app-icon">
                 <img v-if="app.icon" :src="app.icon" :alt="app.name" />
-                <el-icon v-else :size="32" color="#409EFF"><Monitor /></el-icon>
+                <img v-else :src="getIconUrl(app.id)" :alt="app.name" @error="$event.target.style.display='none';$event.target.parentNode.querySelector('.fallback-icon').style.display='flex'" style="max-width:48px;max-height:48px" />
+                <el-icon v-if="!app.icon" :size="32" color="#409EFF" class="fallback-icon" style="display:none"><Monitor /></el-icon>
               </div>
               <div class="app-name">{{ app.name }}</div>
               <div class="app-desc">{{ app.description || app.id }}</div>
@@ -148,10 +149,11 @@
     <el-dialog v-model="detailDialog.visible" :title="detailDialog.app?.name || '应用详情'" width="700px">
       <template v-if="detailDialog.app">
         <div class="detail-header">
-          <div class="detail-icon">
-            <img v-if="detailDialog.app.icon" :src="detailDialog.app.icon" />
-            <el-icon v-else :size="48" color="#409EFF"><Monitor /></el-icon>
-          </div>
+              <div class="detail-icon">
+                <img v-if="detailDialog.app.icon" :src="detailDialog.app.icon" :alt="detailDialog.app.name" />
+                <img v-else :src="getIconUrl(detailDialog.app.id)" :alt="detailDialog.app.name" @error="$event.target.style.display='none'" style="max-width:80px;max-height:80px" />
+                <el-icon v-if="!detailDialog.app.icon" :size="48" color="#409EFF" style="display:none"><Monitor /></el-icon>
+              </div>
           <div class="detail-meta">
             <h3>{{ detailDialog.app.name }}</h3>
             <p>{{ detailDialog.app.description }}</p>
@@ -367,6 +369,11 @@ function changeTag(tag) {
 }
 
 // ─── 分类颜色映射 ────────────────────────────
+
+function getIconUrl(appId) {
+  const base = window.location.origin + '/api/v1/appstore/icon/' + appId
+  return base
+}
 
 function catTagType(cat) {
   const map = {

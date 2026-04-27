@@ -291,6 +291,27 @@ async def remove_repo_api(repo_name: str, auth=Depends(require_auth)):
 # 分类
 # ═══════════════════════════════════════════════════════════════════════════════
 
+@router.get("/icon/{app_id}")
+async def get_app_icon(app_id: str, auth=Depends(require_auth)):
+    """获取应用图标 (logo.png)"""
+    import os
+    from fastapi.responses import FileResponse
+
+    # 在所有仓库中查找 logo.png
+    logo_paths = [
+        f"/opt/ubunturouter/apps/repos/official/apps/{app_id}/logo.png",
+    ]
+
+    # 也检查已安装目录
+    installed_logo = f"/opt/ubunturouter/apps/installed/{app_id}/logo.png"
+
+    for lp in [*logo_paths, installed_logo]:
+        if os.path.exists(lp):
+            return FileResponse(lp, media_type="image/png")
+
+    raise HTTPException(status_code=404, detail="图标未找到")
+
+
 @router.get("/categories")
 async def list_categories(auth=Depends(require_auth)):
     """获取所有应用分类"""
