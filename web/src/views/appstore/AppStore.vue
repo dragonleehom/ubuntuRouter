@@ -134,15 +134,15 @@
       </el-tab-pane>
     </el-tabs>
 
-    <!-- 应用详情对话框 -->
-    <el-dialog v-model="detailDialog.visible" :title="detailDialog.app?.name || '应用详情'" width="700px">
+    <!-- 应用详情对话框（含安装配置） -->
+    <el-dialog v-model="detailDialog.visible" :title="detailDialog.app?.name || '应用详情'" width="740px">
       <template v-if="detailDialog.app">
         <div class="detail-header">
-              <div class="detail-icon">
-                <img v-if="detailDialog.app.icon" :src="detailDialog.app.icon" :alt="detailDialog.app.name" @load="onIconLoad($event)" />
-                <img v-else :src="getIconUrl(detailDialog.app.id)" :alt="detailDialog.app.name" @load="onIconLoad($event)" @error="$event.target.style.display='none'" style="max-width:80px;max-height:80px" />
-                <el-icon v-if="!detailDialog.app.icon" :size="48" color="#409EFF" style="display:none"><Monitor /></el-icon>
-              </div>
+          <div class="detail-icon">
+            <img v-if="detailDialog.app.icon" :src="detailDialog.app.icon" :alt="detailDialog.app.name" @load="onIconLoad($event)" />
+            <img v-else :src="getIconUrl(detailDialog.app.id)" :alt="detailDialog.app.name" @load="onIconLoad($event)" @error="$event.target.style.display='none'" style="max-width:80px;max-height:80px" />
+            <el-icon v-if="!detailDialog.app.icon" :size="48" color="#409EFF" style="display:none"><Monitor /></el-icon>
+          </div>
           <div class="detail-meta">
             <h3>{{ detailDialog.app.name }}</h3>
             <p>{{ detailDialog.app.description }}</p>
@@ -156,7 +156,7 @@
 
         <el-divider />
 
-        <!-- 端口配置 -->
+        <!-- 端口映射（只读） -->
         <div v-if="detailDialog.app.ports?.length" class="config-section">
           <h4>端口映射</h4>
           <el-table :data="detailDialog.app.ports" size="small">
@@ -167,131 +167,119 @@
           </el-table>
         </div>
 
-        <!-- 环境变量 -->
-        <div v-if="detailDialog.app.env_vars?.length" class="config-section">
-          <h4>环境变量</h4>
-          <el-table :data="detailDialog.app.env_vars" size="small">
-            <el-table-column prop="label" label="名称" />
-            <el-table-column prop="description" label="说明" />
-            <el-table-column prop="default" label="默认值" />
-            <el-table-column prop="required" label="必填" width="60">
-              <template #default="{ row }">
-                <el-tag v-if="row.required" size="small" type="danger">是</el-tag>
-                <span v-else class="text-muted">否</span>
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
+        <el-form :model="installForm" label-width="120px" v-if="!detailDialog.app.installed">
+          <!-- 环境变量（可修改） -->
+          <div v-if="detailDialog.app.env_vars?.length" class="config-section">
+            <h4>
+              环境变量
+              <el-button size="small" type="primary" link @click="addCustomEnv">
+                <el-icon><Plus /></el-icon> 添加环境变量
+              </el-button>
+            </h4>
+            <div v-for="ev in detailDialog.app.env_vars" :key="ev.name" class="env-item">
+              <el-form-item :label="ev.label || ev.name" :required="ev.required">
+                <el-input
+                  v-if="ev.type === 'password'"
+                  v-model="installForm.env[ev.name]"
+                  :placeholder="ev.default || ev.description"
+                  type="password"
+                  show-password
+                />
+                <el-switch
+                  v-else-if="ev.type === 'boolean'"
+                  v-model="installForm.env[ev.name]"
+                  :active-value="'true'"
+                  :inactive-value="'false'"
+                />
+                <el-input-number
+                  v-else-if="ev.type === 'number'"
+                  v-model="installForm.env[ev.name]"
+                  :placeholder="String(ev.default || '')"
+                />
+                <el-input
+                  v-else
+                  v-model="installForm.env[ev.name]"
+                  :placeholder="ev.default || ev.description"
+                />
+                <div class="form-help" v-if="ev.description">{{ ev.description }}</div>
+              </el-form-item>
+            </div>
+          </div>
 
-        <!-- 数据卷 -->
-        <div v-if="detailDialog.app.volumes?.length" class="config-section">
-          <h4>数据卷</h4>
-          <el-table :data="detailDialog.app.volumes" size="small">
-            <el-table-column prop="label" label="说明" />
-            <el-table-column prop="container_path" label="容器路径" />
-            <el-table-column prop="host_path" label="主机路径" />
-          </el-table>
-        </div>
+          <!-- 自定义环境变量 -->
+          <div class="config-section">
+            <h4>
+              自定义环境变量
+              <el-button size="small" type="primary" link @click="addCustomEnv">
+                <el-icon><Plus /></el-icon> 添加
+              </el-button>
+            </h4>
+            <div v-for="(ce, idx) in installForm.customEnv" :key="'ce-'+idx" class="custom-row">
+              <el-input v-model="ce.key" placeholder="变量名" size="small" style="width:180px;margin-right:6px" />
+              <el-input v-model="ce.value" placeholder="值" size="small" style="width:260px;margin-right:6px" />
+              <el-button size="small" type="danger" link @click="installForm.customEnv.splice(idx,1)">
+                <el-icon><Delete /></el-icon>
+              </el-button>
+            </div>
+          </div>
+
+          <!-- 数据卷（只读） + 自定义卷挂载 -->
+          <div v-if="detailDialog.app.volumes?.length" class="config-section">
+            <h4>数据卷</h4>
+            <el-table :data="detailDialog.app.volumes" size="small">
+              <el-table-column prop="label" label="说明" />
+              <el-table-column prop="container_path" label="容器路径" />
+              <el-table-column prop="host_path" label="主机路径" />
+            </el-table>
+          </div>
+          <div class="config-section">
+            <h4>
+              自定义卷挂载
+              <el-button size="small" type="primary" link @click="addCustomVolume">
+                <el-icon><Plus /></el-icon> 添加
+              </el-button>
+            </h4>
+            <div v-for="(cv, idx) in installForm.customVolumes" :key="'cv-'+idx" class="custom-row">
+              <el-input v-model="cv.hostPath" placeholder="主机路径" size="small" style="width:180px;margin-right:6px" />
+              <el-input v-model="cv.containerPath" placeholder="容器路径" size="small" style="width:220px;margin-right:6px" />
+              <el-select v-model="cv.mode" size="small" style="width:70px;margin-right:6px">
+                <el-option label="rw" value="rw" />
+                <el-option label="ro" value="ro" />
+              </el-select>
+              <el-button size="small" type="danger" link @click="installForm.customVolumes.splice(idx,1)">
+                <el-icon><Delete /></el-icon>
+              </el-button>
+            </div>
+          </div>
+
+          <!-- 自定义端口映射 -->
+          <div class="config-section">
+            <h4>
+              自定义端口映射
+              <el-button size="small" type="primary" link @click="addCustomPort">
+                <el-icon><Plus /></el-icon> 添加
+              </el-button>
+            </h4>
+            <div v-for="(cp, idx) in installForm.customPorts" :key="'cp-'+idx" class="custom-row">
+              <el-input-number v-model="cp.hostPort" :min="1" :max="65535" size="small" style="width:110px;margin-right:6px" placeholder="主机端口" />
+              <el-input-number v-model="cp.containerPort" :min="1" :max="65535" size="small" style="width:110px;margin-right:6px" placeholder="容器端口" />
+              <el-select v-model="cp.protocol" size="small" style="width:70px;margin-right:6px">
+                <el-option label="tcp" value="tcp" />
+                <el-option label="udp" value="udp" />
+              </el-select>
+              <el-button size="small" type="danger" link @click="installForm.customPorts.splice(idx,1)">
+                <el-icon><Delete /></el-icon>
+              </el-button>
+            </div>
+          </div>
+        </el-form>
 
         <div class="detail-actions">
           <el-button v-if="detailDialog.app.installed" type="danger" @click="uninstallApp(detailDialog.app)">卸载</el-button>
-          <el-button v-else type="primary" size="large" @click="showInstallForm(detailDialog.app)">安装</el-button>
+          <el-button v-else type="primary" size="large" @click="doInstallFromDetail" :loading="installing">安装</el-button>
           <el-button v-if="detailDialog.app.installed && detailDialog.app.installed_version !== detailDialog.app.version"
             type="warning" @click="updateApp(detailDialog.app)">更新到 {{ detailDialog.app.version }}</el-button>
         </div>
-      </template>
-    </el-dialog>
-
-    <!-- 安装配置对话框 -->
-    <el-dialog v-model="installDialog.visible" title="安装配置 - v2.0（支持自定义参数）" width="700px">
-      <el-form :model="installForm" label-width="120px" v-if="installDialog.app">
-        <!-- 应用定义的 env_vars -->
-        <el-divider content-position="left">环境变量</el-divider>
-        <div v-for="ev in installDialog.app.env_vars" :key="ev.name">
-          <el-form-item :label="ev.label || ev.name" :required="ev.required">
-            <el-input
-              v-if="ev.type === 'password'"
-              v-model="installForm.env[ev.name]"
-              :placeholder="ev.default || ev.description"
-              type="password"
-              show-password
-            />
-            <el-switch
-              v-else-if="ev.type === 'boolean'"
-              v-model="installForm.env[ev.name]"
-              :active-value="'true'"
-              :inactive-value="'false'"
-            />
-            <el-input-number
-              v-else-if="ev.type === 'number'"
-              v-model="installForm.env[ev.name]"
-              :placeholder="String(ev.default || '')"
-            />
-            <el-input
-              v-else
-              v-model="installForm.env[ev.name]"
-              :placeholder="ev.default || ev.description"
-            />
-            <div class="form-help" v-if="ev.description">{{ ev.description }}</div>
-          </el-form-item>
-        </div>
-
-        <!-- 自定义环境变量 -->
-        <el-divider content-position="left">
-          自定义环境变量
-          <el-button size="small" type="primary" link @click="addCustomEnv">
-            <el-icon><Plus /></el-icon> 添加
-          </el-button>
-        </el-divider>
-        <div v-for="(ce, idx) in installForm.customEnv" :key="'ce-'+idx" class="custom-row">
-          <el-input v-model="ce.key" placeholder="变量名" size="small" style="width:200px;margin-right:8px" />
-          <el-input v-model="ce.value" placeholder="值" size="small" style="width:280px;margin-right:8px" />
-          <el-button size="small" type="danger" link @click="installForm.customEnv.splice(idx,1)">
-            <el-icon><Delete /></el-icon>
-          </el-button>
-        </div>
-
-        <!-- 自定义卷挂载 -->
-        <el-divider content-position="left">
-          自定义卷挂载
-          <el-button size="small" type="primary" link @click="addCustomVolume">
-            <el-icon><Plus /></el-icon> 添加
-          </el-button>
-        </el-divider>
-        <div v-for="(cv, idx) in installForm.customVolumes" :key="'cv-'+idx" class="custom-row">
-          <el-input v-model="cv.hostPath" placeholder="主机路径" size="small" style="width:200px;margin-right:8px" />
-          <el-input v-model="cv.containerPath" placeholder="容器路径" size="small" style="width:240px;margin-right:8px" />
-          <el-select v-model="cv.mode" size="small" style="width:80px;margin-right:8px">
-            <el-option label="rw" value="rw" />
-            <el-option label="ro" value="ro" />
-          </el-select>
-          <el-button size="small" type="danger" link @click="installForm.customVolumes.splice(idx,1)">
-            <el-icon><Delete /></el-icon>
-          </el-button>
-        </div>
-
-        <!-- 自定义端口映射 -->
-        <el-divider content-position="left">
-          自定义端口映射
-          <el-button size="small" type="primary" link @click="addCustomPort">
-            <el-icon><Plus /></el-icon> 添加
-          </el-button>
-        </el-divider>
-        <div v-for="(cp, idx) in installForm.customPorts" :key="'cp-'+idx" class="custom-row">
-          <el-input-number v-model="cp.hostPort" :min="1" :max="65535" size="small" style="width:120px;margin-right:8px" placeholder="主机端口" />
-          <el-input-number v-model="cp.containerPort" :min="1" :max="65535" size="small" style="width:120px;margin-right:8px" placeholder="容器端口" />
-          <el-select v-model="cp.protocol" size="small" style="width:80px;margin-right:8px">
-            <el-option label="tcp" value="tcp" />
-            <el-option label="udp" value="udp" />
-          </el-select>
-          <el-button size="small" type="danger" link @click="installForm.customPorts.splice(idx,1)">
-            <el-icon><Delete /></el-icon>
-          </el-button>
-        </div>
-      </el-form>
-      <template #footer>
-        <el-button @click="installDialog.visible = false">取消</el-button>
-        <el-button type="primary" @click="doInstall" :loading="installing">开始安装</el-button>
       </template>
     </el-dialog>
 
@@ -366,10 +354,11 @@ const activeTab = ref('market')
 
 const detailDialog = ref({ visible: false, app: null })
 const iconErrors = ref({})
+const installForm = ref({ env: {}, customEnv: [], customVolumes: [], customPorts: [] })
+const installing = ref(false)
 
 function onIconLoad(event) {
   const img = event.target
-  // 检测图片是否有白色背景——采样左上角像素
   try {
     const canvas = document.createElement('canvas')
     canvas.width = img.naturalWidth
@@ -377,31 +366,23 @@ function onIconLoad(event) {
     const ctx = canvas.getContext('2d')
     ctx.drawImage(img, 0, 0)
     const pixel = ctx.getImageData(0, 0, 1, 1).data
-    // 如果左上角是白色 (RGB > 240)，把白色区域转为透明
     if (pixel[0] > 240 && pixel[1] > 240 && pixel[2] > 240) {
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
       const data = imageData.data
       for (let i = 0; i < data.length; i += 4) {
-        // 如果像素的 RGB 都接近白色，设为透明
         if (data[i] > 235 && data[i + 1] > 235 && data[i + 2] > 235) {
           data[i + 3] = 0
         }
       }
       ctx.putImageData(imageData, 0, 0)
-      // 用处理后的 canvas 替换 img 的 src
       img.src = canvas.toDataURL('image/png')
     }
-  } catch {
-    // 跨域或其它原因无法读取像素，忽略
-  }
+  } catch {}
 }
 
 function onIconError(event, appId) {
   iconErrors.value[appId] = true
 }
-const installDialog = ref({ visible: false, app: null })
-const installForm = ref({ env: {}, customEnv: [], customVolumes: [], customPorts: [] })
-const installing = ref(false)
 
 // 自定义参数操作
 function addCustomEnv() { installForm.value.customEnv.push({ key: '', value: '' }) }
@@ -515,42 +496,42 @@ async function viewDetail(app) {
   try {
     const res = await api.get(`/appstore/apps/${app.id}`)
     detailDialog.value = { visible: true, app: res.data.app }
+    // 打开详情时即初始化安装表单
+    installForm.value = { env: {}, customEnv: [], customVolumes: [], customPorts: [] }
+    if (res.data.app.env_vars) {
+      for (const ev of res.data.app.env_vars) {
+        if (ev.default) installForm.value.env[ev.name] = ev.default
+      }
+    }
   } catch (e) {
     ElMessage.error('获取应用详情失败')
   }
 }
 
-function showInstallForm(app) {
-  installForm.value = { env: {}, customEnv: [], customVolumes: [], customPorts: [] }
-  // 预填 env_vars 默认值
-  if (app.env_vars) {
-    for (const ev of app.env_vars) {
-      if (ev.default) installForm.value.env[ev.name] = ev.default
-    }
-  }
-  installDialog.value = { visible: true, app }
-}
-
-async function doInstall() {
+async function doInstallFromDetail() {
   installing.value = true
   try {
-    const payload = {
-      env: installForm.value.env,
+    const payload = { env: {} }
+    // 环境变量
+    for (const key of Object.keys(installForm.value.env)) {
+      const val = installForm.value.env[key]
+      if (val !== '' && val !== null && val !== undefined) {
+        payload.env[key] = val
+      }
     }
-    // 如果有自定义 env，追加到 env 中
+    // 自定义 env
     for (const ce of installForm.value.customEnv) {
       if (ce.key) payload.env[ce.key] = ce.value
     }
-    // 如果有自定义卷/端口，一并发送给后端
+    // 自定义卷/端口
     if (installForm.value.customVolumes.length) {
       payload.custom_volumes = installForm.value.customVolumes.filter(v => v.hostPath && v.containerPath)
     }
     if (installForm.value.customPorts.length) {
       payload.custom_ports = installForm.value.customPorts.filter(p => p.hostPort && p.containerPort)
     }
-    const res = await api.post(`/appstore/apps/${installDialog.value.app.id}/install`, payload)
+    const res = await api.post(`/appstore/apps/${detailDialog.value.app.id}/install`, payload)
     ElMessage.success(res.data.message || '安装成功')
-    installDialog.value.visible = false
     detailDialog.value.visible = false
     await fetchApps()
     await fetchInstalled()
