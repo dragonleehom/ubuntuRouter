@@ -33,13 +33,13 @@ export default [
         path: 'startup',
         name: 'SystemStartup',
         meta: { title: '启动项' },
-        component: () => import('@/views/SystemStartupPlaceholder.vue'),
+        component: () => import('@/views/SystemStartup.vue'),
       },
       {
         path: 'scheduled-tasks',
         name: 'SystemScheduledTasks',
         meta: { title: '定时任务' },
-        component: () => import('@/views/SystemScheduledTasksPlaceholder.vue'),
+        component: () => import('@/views/SystemScheduledTasks.vue'),
       },
       {
         path: 'led',
