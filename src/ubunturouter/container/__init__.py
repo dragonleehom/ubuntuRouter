@@ -360,6 +360,17 @@ class ComposeManager:
         return r.returncode == 0
 
     @staticmethod
+    def stop(project_dir: str) -> Dict:
+        """停止 Compose 项目的所有服务但保留容器"""
+        cmd = ["stop"]
+        r = _run_compose(cmd, project_dir, timeout=60)
+        return {
+            "success": r.returncode == 0,
+            "output": r.stdout[-1000:] if r.stdout else "",
+            "error": r.stderr[-1000:] if r.stderr else "",
+        }
+
+    @staticmethod
     def get_projects(base_dir: str = "/opt/ubunturouter/apps/installed") -> List[ComposeProjectInfo]:
         """扫描已安装的 Compose 项目"""
         base = Path(base_dir)
