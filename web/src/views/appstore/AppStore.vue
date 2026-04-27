@@ -67,9 +67,10 @@
           >
             <el-card shadow="hover" class="app-card" @click="viewDetail(app)">
               <div class="app-icon">
-                <img v-if="app.icon" :src="app.icon" :alt="app.name" />
-                <img v-else :src="getIconUrl(app.id)" :alt="app.name" @error="$event.target.style.display='none';$event.target.parentNode.querySelector('.fallback-icon').style.display='flex'" style="max-width:48px;max-height:48px" />
-                <el-icon v-if="!app.icon" :size="32" color="#409EFF" class="fallback-icon" style="display:none"><Monitor /></el-icon>
+                <div class="icon-wrapper">
+                  <img :src="getIconUrl(app.id)" :alt="app.name" @load="onIconLoad($event)" @error="onIconError($event, app.id)" style="max-width:48px;max-height:48px" />
+                  <el-icon v-if="iconErrors[app.id]" :size="32" color="#409EFF"><Monitor /></el-icon>
+                </div>
               </div>
               <div class="app-name">{{ app.name }}</div>
               <div class="app-desc">{{ app.description || app.id }}</div>
@@ -309,6 +310,32 @@ const activeTab = ref('market')
 const visibleTagCount = ref(7)
 
 const detailDialog = ref({ visible: false, app: null })
+const iconErrors = ref({})
+
+function onIconLoad(event) {
+  const img = event.target
+  const parent = img.parentElement
+  if (!parent) return
+  // 检测图片是否有白色背景——采样左上角像素
+  try {
+    const canvas = document.createElement('canvas')
+    canvas.width = img.naturalWidth
+    canvas.height = img.naturalHeight
+    const ctx = canvas.getContext('2d')
+    ctx.drawImage(img, 0, 0)
+    const pixel = ctx.getImageData(0, 0, 1, 1).data
+    // 如果左上角是白色 (RGB > 240)，加圆形容器遮盖白色背景
+    if (pixel[0] > 240 && pixel[1] > 240 && pixel[2] > 240) {
+      parent.classList.add('has-white-bg')
+    }
+  } catch {
+    // 跨域或其它原因无法读取像素，忽略
+  }
+}
+
+function onIconError(event, appId) {
+  iconErrors.value[appId] = true
+}
 const installDialog = ref({ visible: false, app: null })
 const installForm = ref({ env: {} })
 const installing = ref(false)
@@ -589,10 +616,9 @@ onMounted(() => {
 }
 .tag-row {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  overflow: hidden;
 }
 .tag-row .el-check-tag {
   flex-shrink: 0;
@@ -620,7 +646,20 @@ onMounted(() => {
 .app-card { cursor: pointer; text-align: center; padding: 8px; transition: transform 0.2s; }
 .app-card:hover { transform: translateY(-2px); }
 .app-icon { height: 64px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
-.app-icon img { max-width: 48px; max-height: 48px; }
+.icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  overflow: hidden;
+}
+.icon-wrapper.has-white-bg {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.icon-wrapper img { max-width: 38px; max-height: 38px; }
 .app-name { font-size: 14px; font-weight: 500; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .app-desc { font-size: 12px; color: #999; margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .app-meta { margin-bottom: 8px; }
@@ -631,8 +670,8 @@ onMounted(() => {
 
 /* 详情弹窗 */
 .detail-header { display: flex; gap: 20px; align-items: flex-start; }
-.detail-icon { width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.detail-icon img { max-width: 80px; max-height: 80px; }
+.detail-icon { width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 12px; }
+.detail-icon img { max-width: 64px; max-height: 64px; }
 .detail-meta h3 { margin: 0 0 8px; font-size: 20px; }
 .detail-meta p { margin: 0 0 12px; color: #999; font-size: 14px; }
 .meta-tags { display: flex; gap: 6px; flex-wrap: wrap; }
