@@ -57,7 +57,6 @@
                   filterable
                   style="width: 240px"
                   :loading="tzLoading"
-                  @change="saveTimezone"
                 >
                   <el-option
                     v-for="tz in timezoneData.timezones"
@@ -66,6 +65,13 @@
                     :value="tz"
                   />
                 </el-select>
+                <el-button
+                  size="small"
+                  type="primary"
+                  :loading="tzSaving"
+                  @click="saveTimezone"
+                  style="margin-left: 8px"
+                >应用</el-button>
               </div>
             </div>
           </div>
@@ -145,6 +151,7 @@ const systemInfo = ref(null)
 const snapshots = ref([])
 const snapLoading = ref(false)
 const tzLoading = ref(false)
+const tzSaving = ref(false)
 const timezoneData = ref(null)
 
 const editing = reactive({
@@ -204,13 +211,15 @@ async function fetchTimezones() {
   tzLoading.value = false
 }
 
-async function saveTimezone(tz) {
+async function saveTimezone() {
+  tzSaving.value = true
   try {
-    const res = await api.post('/system/timezone', { timezone: tz })
+    const res = await api.post('/system/timezone', { timezone: form.timezone })
     ElMessage.success(res.data.message)
   } catch (e) {
     ElMessage.error(e.response?.data?.detail || '设置时区失败')
   }
+  tzSaving.value = false
 }
 
 async function saveNtp() {
