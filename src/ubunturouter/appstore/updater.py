@@ -99,18 +99,42 @@ def update(app_id: str) -> Dict:
         # 第 1 步: 备份当前配置和数据
         backup = _backup_data(app_id)
 
-        # 第 2 步: 同步对应仓库（获取最新 manifest）
+        # 第 2 步: 在仓库中查找最新版本的应用目录
         repo_updated = False
         for repo_dir in REPOS_DIR.iterdir():
             if not repo_dir.is_dir():
                 continue
-            app_src = repo_dir / app_id
-            if app_src.exists() and (app_src / "app.yaml").exists():
-                # 更新软链接指向
-                if installed_dir.is_symlink():
-                    installed_dir.unlink()
-                os.symlink(str(app_src), str(installed_dir))
-                repo_updated = True
+            # 支持两种目录结构:
+            #   自建: repo_dir/{app_id}/docker-compose.yml
+            #   1Panel: repo_dir/apps/{app_id}/{version}/docker-compose.yml
+            candidates = [
+                repo_dir / app_id,                                    # 自建
+                repo_dir / "apps" / app_id,                            # 1Panel 层面
+            ]
+            for candidate in candidates:
+                if not candidate.exists():
+                    continue
+                # 自建格式: 直接是 compose 目录
+                if (candidate / "docker-compose.yml").exists():
+                    app_src = candidate
+                # 1Panel 格式: 取最新版本子目录
+                else:
+                    versions = sorted([
+                        d for d in candidate.iterdir()
+                        if d.is_dir() and not d.name.startswith(".")
+                    ], reverse=True)
+                    app_src = versions[0] if versions else None
+                    if app_src and not (app_src / "docker-compose.yml").exists():
+                        app_src = None
+
+                if app_src:
+                    # 更新软链接指向最新版本
+                    if installed_dir.is_symlink():
+                        installed_dir.unlink()
+                    os.symlink(str(app_src), str(installed_dir))
+                    repo_updated = True
+                    break
+            if repo_updated:
                 break
 
         # 第 3 步: 拉取最新镜像
@@ -129,8 +153,18 @@ def update(app_id: str) -> Dict:
                 "error": f"重建失败: {up_result.get('error', '')}",
             }
 
-        # 读取新版本
-        manifest = parse_manifest(installed_dir / "app.yaml")
+        # 读取新版本（支持 app.yaml 和 data.yml）
+        manifest = None
+        for mf in ["app.yaml", "data.yml"]:
+            mf_path = installed_dir / mf
+            if mf_path.exists():
+                if mf == "app.yaml":
+                    manifest = parse_manifest(mf_path)
+                else:
+                    from .engine import parse_onepanel_manifest
+                    manifest = parse_onepanel_manifest(mf_path)
+                if manifest:
+                    break
         new_version = manifest.version if manifest else "unknown"
 
         return {

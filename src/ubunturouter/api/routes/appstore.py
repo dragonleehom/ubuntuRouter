@@ -120,6 +120,25 @@ async def get_app_detail(app_id: str, auth=Depends(require_auth)):
 # 应用生命周期
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _check_container_running(app_id: str) -> str:
+    """通过 docker ps 检查容器运行状态"""
+    import subprocess
+    try:
+        r = subprocess.run(
+            ["docker", "ps", "--filter", f"name=ubunturouter-{app_id}",
+             "--format", "{{.Status}}"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            status = r.stdout.strip().lower()
+            if "up" in status or "running" in status:
+                return "running"
+            return "stopped"
+    except Exception:
+        pass
+    return "unknown"
+
+
 @router.get("/installed")
 async def list_installed_apps(
     page: int = Query(1, ge=1, description="页码"),
@@ -143,6 +162,7 @@ async def list_installed_apps(
                 "category": manifest.category,
                 "icon": manifest.icon,
                 "description": manifest.description[:200],
+                "status": _check_container_running(app_id),
             })
         else:
             result.append({
@@ -171,9 +191,15 @@ async def list_installed_apps(
 
 @router.post("/apps/{app_id}/install")
 async def install_app(app_id: str,
-                      env: dict = Body({}, description="环境变量覆盖"),
+                      body: dict = Body({}, description="安装配置"),
                       auth=Depends(require_auth)):
-    """安装应用"""
+    """安装应用
+
+    支持自定义参数:
+    - env: dict — 环境变量
+    - custom_volumes: list — 额外卷挂载 [{hostPath, containerPath, mode}]
+    - custom_ports: list — 额外端口映射 [{hostPort, containerPort, protocol}]
+    """
     apps = scan_all_repos()
 
     if app_id not in apps:
@@ -189,8 +215,14 @@ async def install_app(app_id: str,
             detail=f"安装预检未通过: {'; '.join(check['issues'])}",
         )
 
+    env = body.get("env", {})
+    custom_volumes = body.get("custom_volumes", [])
+    custom_ports = body.get("custom_ports", [])
+
     # 安装
-    result = install(manifest, env_override=env)
+    result = install(manifest, env_override=env,
+                     custom_volumes=custom_volumes,
+                     custom_ports=custom_ports)
     if not result["success"]:
         raise HTTPException(status_code=500, detail=result.get("error", "安装失败"))
 

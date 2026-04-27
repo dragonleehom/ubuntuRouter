@@ -104,8 +104,12 @@ class InstallRollback:
 
 
 def install(manifest: AppManifest, env_override: Optional[Dict] = None,
-            progress_callback: Optional[Callable] = None) -> Dict:
+            progress_callback: Optional[Callable] = None,
+            custom_volumes: Optional[list] = None,
+            custom_ports: Optional[list] = None) -> Dict:
     """安装应用 — 带完整回滚
+
+    支持自定义卷挂载和端口映射（写入 docker-compose.override.yml）。
 
     安装流程:
     0. 预检 → 1. 创建目录 → 2. 写 .env → 3. 创建数据目录
@@ -204,6 +208,12 @@ def install(manifest: AppManifest, env_override: Optional[Dict] = None,
         progress(55, "检查 Docker 网络...")
         _ensure_external_networks(str(source_dir))
         progress(58, "网络就绪")
+
+        # ── 第 5b 步: 写入 docker-compose.override.yml（自定义卷/端口） ──
+        if custom_volumes or custom_ports:
+            progress(59, "写入自定义配置...")
+            _write_compose_override(source_dir, custom_volumes or [], custom_ports or [])
+            progress(59, "自定义配置已写入")
 
         # ── 第 6 步: docker compose pull ──
         progress(60, "拉取镜像...")
@@ -366,6 +376,60 @@ def _ensure_external_networks(compose_dir: str):
                         ["docker", "network", "create", net_name],
                         capture_output=True, text=True, timeout=10,
                     )
+    except Exception:
+        pass
+
+
+def _write_compose_override(compose_dir: Path, extra_volumes: list, extra_ports: list):
+    """写入 docker-compose.override.yml，添加自定义卷挂载和端口映射。
+
+    docker compose 会自动合并 override.yml 到原 compose 文件。
+    """
+    import yaml
+
+    override = {"services": {}}
+    compose_path = compose_dir / "docker-compose.yml"
+    if not compose_path.exists():
+        return
+
+    try:
+        with open(compose_path, "r") as f:
+            data = yaml.safe_load(f)
+
+        for svc_name in (data.get("services", {}) or {}).keys():
+            svc_overrides = {}
+
+            # 自定义卷挂载
+            vols = []
+            if extra_volumes:
+                for vol in extra_volumes:
+                    hp = vol.get("hostPath", "")
+                    cp = vol.get("containerPath", "")
+                    mode = vol.get("mode", "rw")
+                    if hp and cp:
+                        vols.append(f"{hp}:{cp}:{mode}")
+                if vols:
+                    svc_overrides["volumes"] = vols
+
+            # 自定义端口映射
+            ports_list = []
+            if extra_ports:
+                for p in extra_ports:
+                    hp = p.get("hostPort")
+                    cp = p.get("containerPort")
+                    proto = p.get("protocol", "tcp")
+                    if hp and cp:
+                        ports_list.append(f"{hp}:{cp}/{proto}")
+                if ports_list:
+                    svc_overrides["ports"] = ports_list
+
+            if svc_overrides:
+                override["services"][svc_name] = svc_overrides
+
+        if override["services"]:
+            override_path = compose_dir / "docker-compose.override.yml"
+            with open(override_path, "w") as f:
+                yaml.dump(override, f, default_flow_style=False)
     except Exception:
         pass
 

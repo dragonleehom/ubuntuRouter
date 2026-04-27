@@ -506,7 +506,10 @@ def scan_all_repos() -> Dict[str, AppManifest]:
 
 
 def get_installed_apps() -> Dict[str, str]:
-    """获取已安装的应用列表 {app_id: version}"""
+    """获取已安装的应用列表 {app_id: version}
+
+    同时支持 app.yaml（自建格式）和 data.yml（1Panel格式）
+    """
     installed = {}
     if not INSTALLED_DIR.exists():
         return installed
@@ -514,11 +517,19 @@ def get_installed_apps() -> Dict[str, str]:
     for item in INSTALLED_DIR.iterdir():
         if not item.is_symlink() and not item.is_dir():
             continue
-        manifest_file = item / "app.yaml"
-        if manifest_file.exists():
-            manifest = parse_manifest(manifest_file)
-            if manifest:
-                installed[manifest.id] = manifest.version
+        # 解析 manifest（优先 app.yaml，其次 data.yml）
+        manifest = None
+        for mf in ["app.yaml", "data.yml"]:
+            mf_path = item / mf
+            if mf_path.exists():
+                if mf == "app.yaml":
+                    manifest = parse_manifest(mf_path)
+                else:
+                    manifest = parse_onepanel_manifest(mf_path)
+                if manifest:
+                    break
+        if manifest:
+            installed[manifest.id] = manifest.version
         else:
             installed[item.name] = "unknown"
 

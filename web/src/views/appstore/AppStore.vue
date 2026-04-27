@@ -203,8 +203,10 @@
     </el-dialog>
 
     <!-- 安装配置对话框 -->
-    <el-dialog v-model="installDialog.visible" title="安装配置" width="600px">
+    <el-dialog v-model="installDialog.visible" title="安装配置" width="700px">
       <el-form :model="installForm" label-width="120px" v-if="installDialog.app">
+        <!-- 应用定义的 env_vars -->
+        <el-divider content-position="left">环境变量</el-divider>
         <div v-for="ev in installDialog.app.env_vars" :key="ev.name">
           <el-form-item :label="ev.label || ev.name" :required="ev.required">
             <el-input
@@ -232,6 +234,59 @@
             />
             <div class="form-help" v-if="ev.description">{{ ev.description }}</div>
           </el-form-item>
+        </div>
+
+        <!-- 自定义环境变量 -->
+        <el-divider content-position="left">
+          自定义环境变量
+          <el-button size="small" type="primary" link @click="addCustomEnv">
+            <el-icon><Plus /></el-icon> 添加
+          </el-button>
+        </el-divider>
+        <div v-for="(ce, idx) in installForm.customEnv" :key="'ce-'+idx" class="custom-row">
+          <el-input v-model="ce.key" placeholder="变量名" size="small" style="width:200px;margin-right:8px" />
+          <el-input v-model="ce.value" placeholder="值" size="small" style="width:280px;margin-right:8px" />
+          <el-button size="small" type="danger" link @click="installForm.customEnv.splice(idx,1)">
+            <el-icon><Delete /></el-icon>
+          </el-button>
+        </div>
+
+        <!-- 自定义卷挂载 -->
+        <el-divider content-position="left">
+          自定义卷挂载
+          <el-button size="small" type="primary" link @click="addCustomVolume">
+            <el-icon><Plus /></el-icon> 添加
+          </el-button>
+        </el-divider>
+        <div v-for="(cv, idx) in installForm.customVolumes" :key="'cv-'+idx" class="custom-row">
+          <el-input v-model="cv.hostPath" placeholder="主机路径" size="small" style="width:200px;margin-right:8px" />
+          <el-input v-model="cv.containerPath" placeholder="容器路径" size="small" style="width:240px;margin-right:8px" />
+          <el-select v-model="cv.mode" size="small" style="width:80px;margin-right:8px">
+            <el-option label="rw" value="rw" />
+            <el-option label="ro" value="ro" />
+          </el-select>
+          <el-button size="small" type="danger" link @click="installForm.customVolumes.splice(idx,1)">
+            <el-icon><Delete /></el-icon>
+          </el-button>
+        </div>
+
+        <!-- 自定义端口映射 -->
+        <el-divider content-position="left">
+          自定义端口映射
+          <el-button size="small" type="primary" link @click="addCustomPort">
+            <el-icon><Plus /></el-icon> 添加
+          </el-button>
+        </el-divider>
+        <div v-for="(cp, idx) in installForm.customPorts" :key="'cp-'+idx" class="custom-row">
+          <el-input-number v-model="cp.hostPort" :min="1" :max="65535" size="small" style="width:120px;margin-right:8px" placeholder="主机端口" />
+          <el-input-number v-model="cp.containerPort" :min="1" :max="65535" size="small" style="width:120px;margin-right:8px" placeholder="容器端口" />
+          <el-select v-model="cp.protocol" size="small" style="width:80px;margin-right:8px">
+            <el-option label="tcp" value="tcp" />
+            <el-option label="udp" value="udp" />
+          </el-select>
+          <el-button size="small" type="danger" link @click="installForm.customPorts.splice(idx,1)">
+            <el-icon><Delete /></el-icon>
+          </el-button>
         </div>
       </el-form>
       <template #footer>
@@ -292,7 +347,7 @@
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { api } from '@/stores'
-import { Search, Refresh, Plus, Setting, Monitor } from '@element-plus/icons-vue'
+import { Search, Refresh, Plus, Setting, Monitor, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const loading = ref(false)
@@ -345,8 +400,13 @@ function onIconError(event, appId) {
   iconErrors.value[appId] = true
 }
 const installDialog = ref({ visible: false, app: null })
-const installForm = ref({ env: {} })
+const installForm = ref({ env: {}, customEnv: [], customVolumes: [], customPorts: [] })
 const installing = ref(false)
+
+// 自定义参数操作
+function addCustomEnv() { installForm.value.customEnv.push({ key: '', value: '' }) }
+function addCustomVolume() { installForm.value.customVolumes.push({ hostPath: '', containerPath: '', mode: 'rw' }) }
+function addCustomPort() { installForm.value.customPorts.push({ hostPort: null, containerPort: null, protocol: 'tcp' }) }
 
 // 仓库管理
 const repoDialogVisible = ref(false)
@@ -440,16 +500,9 @@ async function fetchInstalled() {
   try {
     const params = { page: 1, page_size: 200 }
     const res = await api.get('/appstore/installed', { params })
-    // 尝试获取运行状态
-    const containers = []
-    try {
-      const c = await api.get('/containers/list')
-      containers.push(...c.data.containers)
-    } catch {}
     installedApps.value = (res.data.apps || []).map(app => {
       app._operating = ''
-      const running = containers.some(c => c.compose_project === app.id && c.status === 'running')
-      app.status = running ? 'running' : 'stopped'
+      app.status = 'unknown'
       return app
     })
   } catch (e) {
@@ -468,16 +521,34 @@ async function viewDetail(app) {
 }
 
 function showInstallForm(app) {
-  installForm.value = { env: {} }
+  installForm.value = { env: {}, customEnv: [], customVolumes: [], customPorts: [] }
+  // 预填 env_vars 默认值
+  if (app.env_vars) {
+    for (const ev of app.env_vars) {
+      if (ev.default) installForm.value.env[ev.name] = ev.default
+    }
+  }
   installDialog.value = { visible: true, app }
 }
 
 async function doInstall() {
   installing.value = true
   try {
-    const res = await api.post(`/appstore/apps/${installDialog.value.app.id}/install`, {
+    const payload = {
       env: installForm.value.env,
-    })
+    }
+    // 如果有自定义 env，追加到 env 中
+    for (const ce of installForm.value.customEnv) {
+      if (ce.key) payload.env[ce.key] = ce.value
+    }
+    // 如果有自定义卷/端口，一并发送给后端
+    if (installForm.value.customVolumes.length) {
+      payload.custom_volumes = installForm.value.customVolumes.filter(v => v.hostPath && v.containerPath)
+    }
+    if (installForm.value.customPorts.length) {
+      payload.custom_ports = installForm.value.customPorts.filter(p => p.hostPort && p.containerPort)
+    }
+    const res = await api.post(`/appstore/apps/${installDialog.value.app.id}/install`, payload)
     ElMessage.success(res.data.message || '安装成功')
     installDialog.value.visible = false
     detailDialog.value.visible = false
@@ -708,4 +779,15 @@ onMounted(async () => {
 
 /* 已安装页 */
 .text-muted { color: #666; }
+
+/* 安装对话框自定义参数行 */
+.custom-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+  padding-left: 8px;
+}
+
+/* 安装对话框分隔线 */
+.el-divider { margin: 16px 0; }
 </style>
