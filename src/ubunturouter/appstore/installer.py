@@ -200,7 +200,12 @@ def install(manifest: AppManifest, env_override: Optional[Dict] = None,
                     raise RuntimeError(f"pre-install 脚本失败: {r.stderr[:500]}")
             progress(50, "预安装脚本完成")
 
-        # ── 第 5 步: docker compose pull ──
+        # ── 第 5 步: 检查和创建 Docker 外部网络 ──
+        progress(55, "检查 Docker 网络...")
+        _ensure_external_networks(str(source_dir))
+        progress(58, "网络就绪")
+
+        # ── 第 6 步: docker compose pull ──
         progress(60, "拉取镜像...")
         pull_result = ComposeManager.pull(str(source_dir))
         if not pull_result["success"]:
@@ -328,6 +333,41 @@ def _try_find_available_port(env_dict: dict, key: str):
         except Exception:
             pass
     env_dict[key] = str(base)
+
+
+def _ensure_external_networks(compose_dir: str):
+    """检查 docker-compose.yml 中声明的外部网络并创建缺失的。
+
+    1Panel 应用使用 1panel-network 作为外部网络，需要提前创建。
+    """
+    import subprocess
+    import yaml
+
+    compose_path = Path(compose_dir) / "docker-compose.yml"
+    if not compose_path.exists():
+        return
+
+    try:
+        with open(compose_path, "r") as f:
+            data = yaml.safe_load(f)
+
+        networks = data.get("networks", {})
+        for net_name, net_cfg in networks.items():
+            if isinstance(net_cfg, dict) and net_cfg.get("external", False):
+                # 检查网络是否已存在
+                r = subprocess.run(
+                    ["docker", "network", "inspect", net_name],
+                    capture_output=True, text=True, timeout=5,
+                )
+                if r.returncode != 0:
+                    # 创建外部网络
+                    print(f"[安装器] 创建 Docker 外部网络: {net_name}")
+                    subprocess.run(
+                        ["docker", "network", "create", net_name],
+                        capture_output=True, text=True, timeout=10,
+                    )
+    except Exception:
+        pass
 
 
 def _health_check(manifest: AppManifest, install_dir: Path) -> Dict:
