@@ -2,6 +2,7 @@
 
 import subprocess
 from typing import List, Dict
+from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..deps import require_auth
