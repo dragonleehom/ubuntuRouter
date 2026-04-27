@@ -292,8 +292,8 @@ async def remove_repo_api(repo_name: str, auth=Depends(require_auth)):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/icon/{app_id}")
-async def get_app_icon(app_id: str, auth=Depends(require_auth)):
-    """获取应用图标 (logo.png)"""
+async def get_app_icon(app_id: str):
+    """获取应用图标 (logo.png) — 公开端点，无需认证"""
     import os
     from fastapi.responses import FileResponse
 
