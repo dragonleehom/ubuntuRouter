@@ -81,6 +81,39 @@
             @click="controlService(item, 'restart')"
           >重启</el-button>
         </div>
+        <!-- 启动延时设置（仅应用/存储/远程类服务可设） -->
+        <div v-if="item.can_delay" class="delay-section">
+          <div class="delay-label">
+            <el-icon :size="14"><Timer /></el-icon>
+            <span>启动延时</span>
+            <el-tooltip content="设置服务启动前等待的秒数，用于解决服务依赖问题" placement="top">
+              <el-icon :size="14" style="cursor:help;color:var(--el-color-info)"><QuestionFilled /></el-icon>
+            </el-tooltip>
+          </div>
+          <div class="delay-control">
+            <el-input-number
+              v-model="item.delay"
+              :min="0"
+              :max="300"
+              :step="5"
+              size="small"
+              controls-position="right"
+              style="width: 120px"
+              :disabled="savingDelay === item.name"
+            />
+            <span class="delay-unit">秒</span>
+            <el-button
+              size="small"
+              type="primary"
+              text
+              :loading="savingDelay === item.name"
+              @click="saveDelay(item)"
+            >应用</el-button>
+            <el-tag v-if="item.delay > 0" size="small" type="warning" effect="plain">
+              延迟 {{ item.delay }}s 启动
+            </el-tag>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -93,9 +126,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { api } from '@/stores'
 import { ElMessage } from 'element-plus'
-import { Monitor } from '@element-plus/icons-vue'
+import { Monitor, Timer, QuestionFilled } from '@element-plus/icons-vue'
 
 const loading = ref(false)
+const savingDelay = ref('')
 const items = ref([])
 const categories = ref([])
 const activeCategory = ref('all')
@@ -148,6 +182,20 @@ async function controlService(item, action) {
     ElMessage.error(e.response?.data?.detail || `${action} 失败`)
   }
 }
+
+async function saveDelay(item) {
+  savingDelay.value = item.name
+  try {
+    const res = await api.put(`/system/startup/delay/${encodeURIComponent(item.name)}`, {
+      delay: item.delay || 0
+    })
+    item.delay = res.data.delay
+    ElMessage.success(res.data.message)
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || '设置延时失败')
+  }
+  savingDelay.value = ''
+}
 </script>
 
 <style scoped>
@@ -171,7 +219,7 @@ async function controlService(item, action) {
 }
 .service-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 12px;
   margin-top: 16px;
 }
@@ -238,5 +286,32 @@ async function controlService(item, action) {
   align-items: center;
   border-top: 1px solid var(--el-border-color-light);
   padding-top: 10px;
+}
+
+/* 延时设置 */
+.delay-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--el-border-color-light);
+}
+.delay-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+}
+.delay-control {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.delay-unit {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 </style>

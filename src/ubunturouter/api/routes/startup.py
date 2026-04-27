@@ -103,6 +103,7 @@ async def list_startup_items(auth=Depends(require_auth)):
     items = []
     for svc in relevant:
         active = _is_active(svc["name"])
+        delay = _get_delay(svc["name"])
         items.append({
             "name": svc["name"],
             "active": active,
@@ -110,6 +111,8 @@ async def list_startup_items(auth=Depends(require_auth)):
             "state": svc["state"],
             "category": _categorize(svc["name"]),
             "description": _describe(svc["name"]),
+            "can_delay": _can_delay(svc["name"]),
+            "delay": delay,
         })
 
     # 按分类排序
@@ -256,3 +259,99 @@ def _describe(name: str) -> str:
         "ubunturouter.service": "UbuntuRouter 主服务",
     }
     return descriptions.get(name, "系统服务")
+
+
+# ─── 启动延时 (systemd drop-in) ─────────────────────────────────────
+
+
+DROPIN_DIR = Path("/etc/systemd/system")
+
+
+def _dropin_path(name: str) -> Path:
+    """获取服务的 drop-in 配置路径"""
+    # 确保服务名有 .service 后缀
+    if not name.endswith(".service"):
+        name = f"{name}.service"
+    return DROPIN_DIR / f"{name}.d" / "delay.conf"
+
+
+def _get_delay(name: str) -> int:
+    """读取服务的启动延时（秒）"""
+    dp = _dropin_path(name)
+    if not dp.exists():
+        return 0
+    try:
+        content = dp.read_text()
+        for line in content.split("\n"):
+            line = line.strip()
+            if line.startswith("ExecStartPre=") and "/bin/sleep" in line:
+                parts = line.split()
+                if len(parts) >= 2 and parts[-1].isdigit():
+                    return int(parts[-1])
+    except Exception:
+        pass
+    return 0
+
+
+def _can_delay(name: str) -> bool:
+    """判断服务是否可以设置启动延时"""
+    # 系统类和网络类服务不能设延时（底层基础设施必须立即启动）
+    cat = _categorize(name)
+    return cat in ("应用", "存储", "远程")
+
+
+@router.get("/startup/delay/{service_name}")
+async def get_startup_delay(service_name: str, auth=Depends(require_auth)):
+    """获取服务的启动延时"""
+    delay = _get_delay(service_name)
+    return {
+        "name": service_name,
+        "delay": delay,
+        "can_delay": _can_delay(service_name),
+    }
+
+
+@router.put("/startup/delay/{service_name}")
+async def set_startup_delay(service_name: str, req: dict, auth=Depends(require_auth)):
+    """设置服务的启动延时（秒）"""
+    if not _can_delay(service_name):
+        raise HTTPException(400, "该服务不支持设置启动延时")
+
+    delay = req.get("delay", 0)
+    if not isinstance(delay, int) or delay < 0:
+        raise HTTPException(400, "延时必须为非负整数（秒）")
+    if delay > 300:
+        raise HTTPException(400, "延时不能超过 300 秒")
+
+    if not service_name.endswith(".service"):
+        service_name = f"{service_name}.service"
+
+    dp = _dropin_path(service_name)
+    if delay == 0:
+        # 删除 drop-in 配置
+        if dp.exists():
+            dp.unlink()
+        # 清理空目录
+        parent = dp.parent
+        if parent.exists() and not any(parent.iterdir()):
+            parent.rmdir()
+        # 重新加载 systemd
+        subprocess.run(
+            ["systemctl", "daemon-reload"],
+            capture_output=True, text=True, timeout=10,
+        )
+        return {"message": f"{service_name} 启动延时已清除", "delay": 0}
+
+    # 写入 drop-in 配置
+    parent = dp.parent
+    parent.mkdir(parents=True, exist_ok=True)
+    dp.write_text(f"""[Service]
+# UbuntuRouter managed delay
+ExecStartPre=-/bin/sleep {delay}
+""")
+    # 重新加载 systemd
+    subprocess.run(
+        ["systemctl", "daemon-reload"],
+        capture_output=True, text=True, timeout=10,
+    )
+    return {"message": f"{service_name} 启动延时已设为 {delay} 秒", "delay": delay}
