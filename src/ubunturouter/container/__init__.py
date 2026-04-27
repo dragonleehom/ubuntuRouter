@@ -217,6 +217,21 @@ class ContainerManager:
         return r.stdout
 
     @staticmethod
+    def exec_run(container_id: str, cmd: str, shell: str = "/bin/sh") -> Dict:
+        """在容器内执行命令"""
+        # docker exec <container> <shell> -c '<cmd>'
+        full_cmd = [DOCKER_BIN, "exec", container_id, shell, "-c", cmd]
+        r = subprocess.run(
+            full_cmd,
+            capture_output=True, text=True, timeout=60
+        )
+        return {
+            "exit_code": r.returncode,
+            "stdout": r.stdout,
+            "stderr": r.stderr,
+        }
+
+    @staticmethod
     def stats() -> List[Dict]:
         """获取容器资源统计"""
         r = _run(["stats", "--no-stream", "--format", "{{json .}}"], timeout=30)
@@ -269,6 +284,49 @@ class ContainerManager:
             except json.JSONDecodeError:
                 continue
         return images
+
+    @staticmethod
+    def remove_image(image_id: str, force: bool = False) -> bool:
+        """删除镜像"""
+        cmd = ["rmi"]
+        if force:
+            cmd.append("-f")
+        cmd.append(image_id)
+        r = _run(cmd, timeout=60)
+        return r.returncode == 0
+
+    @staticmethod
+    def inspect_image(image_id: str) -> Optional[Dict]:
+        """获取镜像详情（docker image inspect）"""
+        r = _run(["image", "inspect", image_id], timeout=30)
+        if r.returncode != 0:
+            return None
+        try:
+            data = json.loads(r.stdout)
+            if data:
+                return data[0]
+        except (json.JSONDecodeError, IndexError):
+            pass
+        return None
+
+    @staticmethod
+    def prune_images(all: bool = False) -> Dict:
+        """清理未使用的镜像"""
+        cmd = ["image", "prune", "-f"]
+        if all:
+            cmd.append("-a")  # 删除所有未使用的镜像，不仅仅是 dangling
+        r = _run(cmd, timeout=120)
+        # 解析回收空间
+        reclaimed = 0
+        for line in r.stdout.split("\n"):
+            line = line.strip()
+            if "Total reclaimed space:" in line:
+                reclaimed = line.split(":")[-1].strip()
+        return {
+            "success": r.returncode == 0,
+            "output": r.stdout.strip(),
+            "reclaimed": reclaimed,
+        }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

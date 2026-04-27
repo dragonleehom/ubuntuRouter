@@ -1,4 +1,4 @@
-"""VPN API 路由 — WireGuard 隧道管理"""
+"""VPN API 路由 — WireGuard 隧道 + Tailscale 管理"""
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -8,6 +8,87 @@ from ...vpn import VpnManager, WireGuardTunnel, WireGuardPeer
 
 router = APIRouter()
 vm = VpnManager()
+
+
+# ─── Tailscale 管理 ─────────────────────────────────────────
+
+
+@router.get("/tailscale/status")
+async def tailscale_status(auth=Depends(require_auth)):
+    """获取 Tailscale 状态"""
+    import subprocess
+    try:
+        r = subprocess.run(
+            ["tailscale", "status", "--json"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if r.returncode != 0:
+            return {"running": False, "error": r.stderr.strip()}
+        import json
+        data = json.loads(r.stdout)
+        peers = []
+        for peer_id, peer_info in data.get("Peer", {}).items():
+            peers.append({
+                "id": peer_id,
+                "hostname": peer_info.get("HostName", ""),
+                "dns_name": peer_info.get("DNSName", ""),
+                "os": peer_info.get("OS", ""),
+                "ip": peer_info.get("TailscaleIPs", []),
+                "online": peer_info.get("Online", False),
+                "relay": peer_info.get("Relay", ""),
+                "rx_bytes": peer_info.get("RxBytes", 0),
+                "tx_bytes": peer_info.get("TxBytes", 0),
+                "last_seen": peer_info.get("LastSeen", ""),
+            })
+        self_info = {
+            "hostname": data.get("Self", {}).get("HostName", ""),
+            "dns_name": data.get("Self", {}).get("DNSName", ""),
+            "ip": data.get("Self", {}).get("TailscaleIPs", []),
+        }
+        return {
+            "running": True,
+            "version": data.get("Version", ""),
+            "self": self_info,
+            "peers": peers,
+            "peer_count": len(peers),
+            "online_count": sum(1 for p in peers if p["online"]),
+        }
+    except FileNotFoundError:
+        return {"running": False, "error": "tailscale 未安装"}
+    except Exception as e:
+        return {"running": False, "error": str(e)}
+
+
+@router.post("/tailscale/up")
+async def tailscale_up(auth=Depends(require_auth)):
+    """启动 Tailscale"""
+    import subprocess
+    try:
+        r = subprocess.run(
+            ["tailscale", "up"],
+            capture_output=True, text=True, timeout=30,
+        )
+        if r.returncode != 0:
+            raise HTTPException(status_code=500, detail=f"Tailscale 启动失败: {r.stderr.strip()}")
+        return {"success": True, "message": "Tailscale 已启动"}
+    except FileNotFoundError:
+        raise HTTPException(status_code=500, detail="tailscale 未安装")
+
+
+@router.post("/tailscale/down")
+async def tailscale_down(auth=Depends(require_auth)):
+    """停止 Tailscale"""
+    import subprocess
+    try:
+        r = subprocess.run(
+            ["tailscale", "down"],
+            capture_output=True, text=True, timeout=30,
+        )
+        if r.returncode != 0:
+            raise HTTPException(status_code=500, detail=f"Tailscale 停止失败: {r.stderr.strip()}")
+        return {"success": True, "message": "Tailscale 已停止"}
+    except FileNotFoundError:
+        raise HTTPException(status_code=500, detail="tailscale 未安装")
 
 
 # ─── 请求/响应模型 ──────────────────────────────────────────

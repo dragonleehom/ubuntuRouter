@@ -102,7 +102,7 @@
         </el-card>
       </el-col>
 
-      <!-- 右侧：服务状态 -->
+      <!-- 右侧：服务状态 + Wake on LAN -->
       <el-col :span="12">
         <el-card class="system-card">
           <template #header><span>服务状态</span></template>
@@ -115,6 +115,32 @@
             </div>
           </div>
           <el-skeleton :rows="3" animated v-else />
+        </el-card>
+
+        <!-- Wake on LAN -->
+        <el-card class="system-card">
+          <template #header><span>Wake on LAN</span></template>
+          <div class="wol-form">
+            <el-input
+              v-model="wolMac"
+              size="small"
+              placeholder="MAC 地址 (如 AA:BB:CC:DD:EE:FF)"
+              style="width: 100%; margin-bottom: 8px"
+            />
+            <el-input
+              v-model="wolBroadcast"
+              size="small"
+              placeholder="广播地址 (默认 255.255.255.255)"
+              style="width: 100%; margin-bottom: 8px"
+            />
+            <el-button
+              type="primary"
+              size="small"
+              @click="sendWol"
+              :loading="wolSending"
+              style="width: 100%"
+            >发送唤醒包</el-button>
+          </div>
         </el-card>
       </el-col>
     </el-row>
@@ -164,6 +190,11 @@ const form = reactive({
   ntpEnabled: true,
   ntpServers: '',
 })
+
+// Wake on LAN
+const wolMac = ref('')
+const wolBroadcast = ref('255.255.255.255')
+const wolSending = ref(false)
 
 onMounted(async () => {
   try {
@@ -244,6 +275,21 @@ async function fetchSnapshots() {
   }
   snapLoading.value = false
 }
+
+async function sendWol() {
+  if (!wolMac.value.trim()) { ElMessage.warning('请输入 MAC 地址'); return }
+  wolSending.value = true
+  try {
+    const res = await api.post('/system/wol', {
+      mac: wolMac.value.trim(),
+      broadcast: wolBroadcast.value.trim(),
+    })
+    ElMessage.success(res.data.message)
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || '发送 WoL 包失败')
+  }
+  wolSending.value = false
+}
 </script>
 
 <style scoped>
@@ -260,4 +306,5 @@ async function fetchSnapshots() {
 .service-name { color: #ccc; font-size: 14px; }
 .snapshot-card { margin-top: 20px; }
 .card-header { display: flex; justify-content: space-between; align-items: center; }
+.wol-form { display: flex; flex-direction: column; }
 </style>

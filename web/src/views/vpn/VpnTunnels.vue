@@ -37,6 +37,10 @@
       </el-col>
     </el-row>
 
+    <!-- WireGuard / Tailscale 标签页 -->
+    <el-tabs v-model="activeTab">
+      <el-tab-pane label="WireGuard" name="wireguard">
+
     <!-- 隧道列表 -->
     <el-card shadow="never" class="section-card">
       <template #header>
@@ -75,6 +79,80 @@
       </el-table>
       <el-empty v-if="tunnels.length === 0" description="暂无 VPN 隧道" />
     </el-card>
+      </el-tab-pane>
+
+      <el-tab-pane label="Tailscale" name="tailscale">
+        <div class="toolbar">
+          <el-button size="small" @click="fetchTailscaleStatus" :loading="tsLoading">
+            <el-icon style="margin-right:4px"><Refresh /></el-icon>刷新
+          </el-button>
+          <el-button v-if="!tsStatus.running" size="small" type="success" @click="tailscaleUp" :loading="tsOperating">
+            启动 Tailscale
+          </el-button>
+          <el-button v-else size="small" type="danger" @click="tailscaleDown" :loading="tsOperating">
+            停止 Tailscale
+          </el-button>
+        </div>
+
+        <!-- Tailscale 自身信息 -->
+        <el-card shadow="never" class="section-card" v-if="tsStatus.running">
+          <template #header><span style="color:#ccc;">本机信息</span></template>
+          <div class="ts-self">
+            <div class="ts-self-row">
+              <span class="ts-label">主机名</span>
+              <span class="ts-value">{{ tsStatus.self?.hostname || '-' }}</span>
+            </div>
+            <div class="ts-self-row">
+              <span class="ts-label">DNS 名称</span>
+              <span class="ts-value">{{ tsStatus.self?.dns_name || '-' }}</span>
+            </div>
+            <div class="ts-self-row">
+              <span class="ts-label">Tailscale IP</span>
+              <span class="ts-value">
+                <el-tag v-for="ip in (tsStatus.self?.ip || [])" :key="ip" size="small" style="margin:1px">{{ ip }}</el-tag>
+              </span>
+            </div>
+            <div class="ts-self-row">
+              <span class="ts-label">版本</span>
+              <span class="ts-value">{{ tsStatus.version || '-' }}</span>
+            </div>
+          </div>
+        </el-card>
+
+        <!-- Peer 列表 -->
+        <el-card shadow="never" class="section-card" style="margin-top:12px" v-if="tsStatus.running">
+          <template #header>
+            <span style="color:#ccc;">Peer 列表 ({{ tsStatus.peer_count }})</span>
+          </template>
+          <el-table :data="tsStatus.peers || []" stripe size="small">
+            <el-table-column prop="hostname" label="主机名" min-width="150" />
+            <el-table-column label="IP" min-width="160" class="hide-mobile">
+              <template #default="{ row }">
+                <el-tag v-for="ip in (row.ip || [])" :key="ip" size="small" style="margin:1px">{{ ip }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="os" label="系统" width="80" class="hide-mobile" />
+            <el-table-column label="在线" width="80">
+              <template #default="{ row }">
+                <el-tag :type="row.online ? 'success' : 'info'" size="small">
+                  {{ row.online ? '在线' : '离线' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="接收" width="100" align="right" class="hide-mobile">
+              <template #default="{ row }">{{ formatBytes(row.rx_bytes) }}</template>
+            </el-table-column>
+            <el-table-column label="发送" width="100" align="right" class="hide-mobile">
+              <template #default="{ row }">{{ formatBytes(row.tx_bytes) }}</template>
+            </el-table-column>
+            <el-table-column prop="relay" label="中继" width="160" class="hide-mobile" />
+          </el-table>
+          <el-empty v-if="!tsStatus.peers || tsStatus.peers.length === 0" description="无 Peer" />
+        </el-card>
+
+        <el-empty v-if="!tsStatus.running && !tsLoading" :description="tsStatus.error || 'Tailscale 未运行'" />
+      </el-tab-pane>
+    </el-tabs>
 
     <!-- 创建隧道对话框 -->
     <el-dialog v-model="showAddTunnel" title="创建 WireGuard 隧道" width="500px">
@@ -190,6 +268,11 @@ const showDetail = ref(false)
 const showAddPeer = ref(false)
 const detail = reactive({ name: '', peers: [] })
 const selectedTunnelName = ref('')
+const activeTab = ref('wireguard')
+// Tailscale
+const tsLoading = ref(false)
+const tsOperating = ref(false)
+const tsStatus = reactive({ running: false, self: {}, peers: [], peer_count: 0, online_count: 0, version: '', error: '' })
 
 const newTunnel = reactive({
   name: 'wg0',
@@ -313,6 +396,43 @@ async function removePeer(index) {
     ElMessage.success(res.data.message)
     await showTunnelDetail({ name: selectedTunnelName.value })
   } catch { /* cancelled */ }
+}
+
+onMounted(refreshData)
+
+async function fetchTailscaleStatus() {
+  tsLoading.value = true
+  try {
+    const res = await api.get('/vpn/tailscale/status')
+    Object.assign(tsStatus, res.data)
+  } catch (e) {
+    ElMessage.error('获取 Tailscale 状态失败')
+  }
+  tsLoading.value = false
+}
+
+async function tailscaleUp() {
+  tsOperating.value = true
+  try {
+    const res = await api.post('/vpn/tailscale/up')
+    ElMessage.success(res.data.message)
+    await fetchTailscaleStatus()
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || '启动失败')
+  }
+  tsOperating.value = false
+}
+
+async function tailscaleDown() {
+  tsOperating.value = true
+  try {
+    const res = await api.post('/vpn/tailscale/down')
+    ElMessage.success(res.data.message)
+    await fetchTailscaleStatus()
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || '停止失败')
+  }
+  tsOperating.value = false
 }
 
 function formatBytes(bytes) {

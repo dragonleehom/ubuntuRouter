@@ -119,6 +119,54 @@
 
     <!-- 空状态 -->
     <el-empty v-if="!loading && filteredItems.length === 0" description="没有匹配的服务" />
+
+    <!-- 注册新服务按钮 -->
+    <div class="register-bar">
+      <el-button type="primary" size="small" @click="showRegisterDialog = true">
+        <el-icon style="margin-right:4px"><Plus /></el-icon>注册新服务
+      </el-button>
+    </div>
+
+    <!-- 注册新服务对话框 -->
+    <el-dialog v-model="showRegisterDialog" title="注册新服务" width="520px">
+      <el-form :model="registerForm" label-width="100px" size="small">
+        <el-form-item label="服务名" required>
+          <el-input v-model="registerForm.name" placeholder="如 myapp" />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="registerForm.description" placeholder="可选描述" />
+        </el-form-item>
+        <el-form-item label="启动命令" required>
+          <el-input v-model="registerForm.exec_start" placeholder="如 /usr/bin/myapp --config /etc/myapp.conf" />
+        </el-form-item>
+        <el-form-item label="启动类型">
+          <el-select v-model="registerForm.type" style="width:100%">
+            <el-option label="simple（默认）" value="simple" />
+            <el-option label="forking" value="forking" />
+            <el-option label="oneshot" value="oneshot" />
+            <el-option label="idle" value="idle" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="用户">
+          <el-input v-model="registerForm.user" placeholder="可选，留空为 root" />
+        </el-form-item>
+        <el-form-item label="重启策略">
+          <el-select v-model="registerForm.restart" style="width:100%">
+            <el-option label="异常时重启" value="on-failure" />
+            <el-option label="总是重启" value="always" />
+            <el-option label="不自动重启" value="no" />
+            <el-option label="除非停止" value="unless-stopped" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="启动依赖">
+          <el-input v-model="registerForm.after" placeholder="network.target" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showRegisterDialog = false">取消</el-button>
+        <el-button type="primary" @click="registerService" :loading="registering">注册</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -134,6 +182,17 @@ const items = ref([])
 const categories = ref([])
 const activeCategory = ref('all')
 const search = ref('')
+const showRegisterDialog = ref(false)
+const registering = ref(false)
+const registerForm = ref({
+  name: '',
+  description: '',
+  exec_start: '',
+  type: 'simple',
+  user: '',
+  restart: 'on-failure',
+  after: 'network.target',
+})
 
 const filteredItems = computed(() => {
   let list = items.value
@@ -195,6 +254,31 @@ async function saveDelay(item) {
     ElMessage.error(e.response?.data?.detail || '设置延时失败')
   }
   savingDelay.value = ''
+}
+
+async function registerService() {
+  const f = registerForm.value
+  if (!f.name.trim()) { ElMessage.warning('请输入服务名'); return }
+  if (!f.exec_start.trim()) { ElMessage.warning('请输入启动命令'); return }
+  registering.value = true
+  try {
+    const res = await api.post('/system/service/register', {
+      name: f.name.trim(),
+      description: f.description.trim(),
+      exec_start: f.exec_start.trim(),
+      type: f.type,
+      user: f.user.trim(),
+      restart: f.restart,
+      after: f.after.trim(),
+    })
+    ElMessage.success(res.data.message)
+    showRegisterDialog.value = false
+    registerForm.value = { name: '', description: '', exec_start: '', type: 'simple', user: '', restart: 'on-failure', after: 'network.target' }
+    await fetchItems()
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || '注册失败')
+  }
+  registering.value = false
 }
 </script>
 

@@ -479,6 +479,65 @@ async def shutdown_system(body: RebootShutdownRequest = RebootShutdownRequest(),
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ─── Wake on LAN ──────────────────────────────────────────────
+
+
+class WolRequest(BaseModel):
+    mac: str
+    broadcast: str = "255.255.255.255"
+    port: int = 9
+    interface: str = ""
+
+
+@router.post("/wol")
+async def wake_on_lan(body: WolRequest, auth=Depends(require_auth)):
+    """发送 Wake-on-LAN 魔法包"""
+    mac = body.mac.strip().replace("-", ":").replace(".", ":")
+    # 验证 MAC 地址格式
+    import re
+    if not re.match(r"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$", mac):
+        raise HTTPException(status_code=400, detail="MAC 地址格式无效")
+
+    try:
+        # 使用 etherwake 或 wol 工具
+        cmd = ["etherwake"]
+        if body.interface:
+            cmd.extend(["-i", body.interface])
+        cmd.append(mac)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        if r.returncode == 0:
+            return {"success": True, "message": f"Wake-on-LAN 包已发送到 {mac}"}
+        # 降级: 使用 Python 构造魔法包
+        import socket
+        mac_bytes = bytes.fromhex(mac.replace(":", ""))
+        magic_packet = b"\xff" * 6 + mac_bytes * 16
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        if body.interface:
+            sock.bind((body.interface, 0))
+        sock.sendto(magic_packet, (body.broadcast, body.port))
+        sock.close()
+        return {"success": True, "message": f"WoL 魔法包已发送到 {mac}"}
+    except FileNotFoundError:
+        # etherwake 未安装，使用 Python socket
+        try:
+            import socket
+            mac_bytes = bytes.fromhex(mac.replace(":", ""))
+            magic_packet = b"\xff" * 6 + mac_bytes * 16
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            if body.interface:
+                sock.bind((body.interface, 0))
+            sock.sendto(magic_packet, (body.broadcast, body.port))
+            sock.close()
+            return {"success": True, "message": f"WoL 魔法包已发送到 {mac}"}
+        except Exception as e2:
+            raise HTTPException(status_code=500, detail=f"WoL 发送失败: {e2}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"WoL 发送失败: {e}")
+
+
 # ─── 辅助 ──────────────────────────────────────────────────────────
 
 

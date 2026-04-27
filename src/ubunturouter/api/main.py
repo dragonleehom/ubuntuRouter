@@ -23,6 +23,7 @@ from .routes import arp as arp_routes
 from .routes import cron as cron_routes
 from .routes import startup as startup_routes
 from .routes import files as files_routes
+from .routes import upnp as upnp_routes
 from .ws import dashboard as ws_dashboard
 from .auth import jwt as jwt_auth
 from .tls import init_https
@@ -76,6 +77,7 @@ def create_app() -> FastAPI:
     app.include_router(cron_routes.router, prefix="/api/v1/system", tags=["Cron"])
     app.include_router(startup_routes.router, prefix="/api/v1/system", tags=["Startup"])
     app.include_router(files_routes.router, prefix="/api/v1", tags=["Files"])
+    app.include_router(upnp_routes.router, prefix="/api/v1/upnp", tags=["UPnP"])
 
     # WebSocket
     app.add_api_websocket_route("/api/v1/ws/dashboard", ws_dashboard.websocket_endpoint)

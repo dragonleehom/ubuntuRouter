@@ -4,6 +4,7 @@ import subprocess
 from typing import List, Dict
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
 from ..deps import require_auth
 
@@ -170,6 +171,80 @@ async def startup_service_status(name: str, auth=Depends(require_auth)):
     )
     enabled = r.stdout.strip()
     return {"name": name, "active": active, "enabled": enabled}
+
+
+# ─── 服务注册/注销 ────────────────────────────────────────────
+
+
+class RegisterServiceRequest(BaseModel):
+    name: str
+    description: str = ""
+    exec_start: str = ""
+    after: str = "network.target"
+    type: str = "simple"
+    user: str = ""
+    restart: str = "on-failure"
+    wanted_by: str = "multi-user.target"
+
+
+@router.post("/service/register")
+async def register_service(req: RegisterServiceRequest, auth=Depends(require_auth)):
+    """注册新服务（创建 systemd unit 文件）"""
+    if not req.name.endswith(".service"):
+        name = f"{req.name}.service"
+    else:
+        name = req.name
+
+    unit_path = Path(f"/etc/systemd/system/{name}")
+    if unit_path.exists():
+        raise HTTPException(400, f"服务 '{name}' 已存在")
+
+    try:
+        unit_content = f"""[Unit]
+Description={req.description or req.name}
+After={req.after}
+
+[Service]
+Type={req.type}
+ExecStart={req.exec_start}
+Restart={req.restart}
+"""
+        if req.user:
+            unit_content += f"User={req.user}\n"
+        unit_content += f"""
+[Install]
+WantedBy={req.wanted_by}
+"""
+        unit_path.write_text(unit_content)
+        unit_path.chmod(0o644)
+
+        # 重新加载 systemd
+        subprocess.run(["systemctl", "daemon-reload"], capture_output=True, text=True, timeout=10)
+        return {"success": True, "message": f"服务 '{name}' 已注册", "name": name}
+    except Exception as e:
+        raise HTTPException(500, f"注册服务失败: {e}")
+
+
+@router.delete("/service/{service_name}")
+async def unregister_service(service_name: str, auth=Depends(require_auth)):
+    """注销服务（删除 systemd unit 文件）"""
+    if not service_name.endswith(".service"):
+        service_name = f"{service_name}.service"
+
+    unit_path = Path(f"/etc/systemd/system/{service_name}")
+    if not unit_path.exists():
+        raise HTTPException(404, f"服务 '{service_name}' 不存在")
+
+    try:
+        # 先停止再禁用
+        subprocess.run(["systemctl", "stop", service_name], capture_output=True, text=True, timeout=15)
+        subprocess.run(["systemctl", "disable", service_name], capture_output=True, text=True, timeout=15)
+        unit_path.unlink()
+        # 重新加载
+        subprocess.run(["systemctl", "daemon-reload"], capture_output=True, text=True, timeout=10)
+        return {"success": True, "message": f"服务 '{service_name}' 已注销"}
+    except Exception as e:
+        raise HTTPException(500, f"注销服务失败: {e}")
 
 
 @router.post("/service/control")

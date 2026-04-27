@@ -2,11 +2,18 @@
 
 from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import List, Optional
+from pydantic import BaseModel
 
 from ..deps import require_auth
 from ...container import ContainerManager, ComposeManager
 
 router = APIRouter()
+
+
+class ExecRequest(BaseModel):
+    """容器内执行命令请求"""
+    cmd: str
+    shell: str = "/bin/sh"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -39,6 +46,52 @@ async def pull_image(image: str, auth=Depends(require_auth)):
     if not success:
         raise HTTPException(status_code=500, detail=f"拉取镜像 '{image}' 失败")
     return {"message": f"镜像 '{image}' 拉取完成"}
+
+
+@router.delete("/images/{image_id}")
+async def remove_image(image_id: str, force: bool = False, auth=Depends(require_auth)):
+    """删除镜像"""
+    success = ContainerManager.remove_image(image_id, force=force)
+    if not success:
+        raise HTTPException(status_code=500, detail=f"删除镜像 '{image_id}' 失败")
+    return {"message": f"镜像 '{image_id}' 已删除"}
+
+
+@router.get("/images/{image_id}/inspect")
+async def inspect_image(image_id: str, auth=Depends(require_auth)):
+    """查看镜像详情"""
+    data = ContainerManager.inspect_image(image_id)
+    if not data:
+        raise HTTPException(status_code=404, detail=f"镜像 '{image_id}' 未找到")
+    layers = data.get("RootFS", {}).get("Layers", [])
+    exposed_ports = list(data.get("Config", {}).get("ExposedPorts", {}).keys()) or []
+    env = data.get("Config", {}).get("Env", [])
+    return {
+        "image": {
+            "id": data.get("Id", ""),
+            "repo_tags": data.get("RepoTags", []),
+            "size_str": _format_size(data.get("Size", 0)),
+            "architecture": data.get("Architecture", ""),
+            "os": data.get("Os", ""),
+            "layers": len(layers),
+            "exposed_ports": exposed_ports,
+            "env": env,
+        }
+    }
+
+
+@router.post("/images/prune")
+async def prune_images(all: bool = False, auth=Depends(require_auth)):
+    """清理未使用的镜像"""
+    result = ContainerManager.prune_images(all=all)
+    reclaimed = result.get("reclaimed", "")
+    reclaimed_str = str(reclaimed) if reclaimed else "0 B"
+    return {
+        "message": "清理完成",
+        "reclaimed": result.get("reclaimed", ""),
+        "reclaimed_str": reclaimed_str,
+        "success": result.get("success", False),
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -152,6 +205,66 @@ async def get_container_stats(container_id: str, auth=Depends(require_auth)):
     else:
         stats = [s for s in ContainerManager.stats() if s["container_id"].startswith(container_id)]
     return {"stats": stats}
+
+
+@router.post("/{container_id}/exec")
+async def exec_in_container(container_id: str, req: ExecRequest, auth=Depends(require_auth)):
+    """在容器内执行命令"""
+    result = ContainerManager.exec_run(container_id, req.cmd, req.shell)
+    return {
+        "container_id": container_id,
+        "exit_code": result["exit_code"],
+        "stdout": result["stdout"],
+        "stderr": result["stderr"],
+    }
+
+
+@router.get("/{container_id}/inspect")
+async def inspect_container(container_id: str, auth=Depends(require_auth)):
+    """获取容器详细配置信息"""
+    data = ContainerManager.inspect_container(container_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="容器未找到")
+    return {"inspect": data}
+
+
+@router.get("/app-open")
+async def list_app_open(auth=Depends(require_auth)):
+    """扫描运行容器暴露的HTTP端口"""
+    containers = ContainerManager.list_containers(all=False)
+    apps = []
+    for c in containers:
+        if c.status != "running":
+            continue
+        if not c.ports:
+            continue
+        for p in c.ports:
+            host_port = p.get("host_port")
+            if host_port:
+                apps.append({
+                    "container_id": c.id,
+                    "container_name": c.name,
+                    "image": c.image,
+                    "port": host_port,
+                    "url": f"http://localhost:{host_port}",
+                })
+    return {"apps": apps}
+
+
+@router.get("/app-open/{container_id}")
+async def get_container_app_open(container_id: str, auth=Depends(require_auth)):
+    """获取单个容器暴露的HTTP端口"""
+    c = ContainerManager.get_container(container_id)
+    if not c:
+        raise HTTPException(status_code=404, detail="容器未找到")
+    if c.status != "running":
+        return {"url": None, "message": "容器未运行"}
+    if not c.ports:
+        return {"url": None, "message": "容器未暴露端口"}
+    host_port = c.ports[0].get("host_port")
+    if host_port:
+        return {"url": f"http://localhost:{host_port}", "port": host_port}
+    return {"url": None, "message": "未检测到HTTP端口"}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
