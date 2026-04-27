@@ -15,7 +15,7 @@ export default [
         path: 'files',
         name: 'StorageFiles',
         meta: { title: '文件管理' },
-        component: () => import('@/views/storage/StorageManager.vue'), // 后续拆出独立文件管理器
+        component: () => import('@/views/FileManager.vue'),
       },
       {
         path: 'samba',
