@@ -21,7 +21,7 @@ export default [
         path: 'wireless',
         name: 'NetworkWireless',
         meta: { title: 'WiFi' },
-        component: () => import('@/views/NetworkWirelessPlaceholder.vue'),
+        component: () => import('@/views/NetworkWireless.vue'),
       },
       {
         path: 'dhcp',
