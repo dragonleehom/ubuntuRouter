@@ -4,6 +4,8 @@ import subprocess
 import json
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
+import os
+import pwd
 from pydantic import BaseModel
 
 from ..deps import require_auth
@@ -44,11 +46,278 @@ async def system_status(auth=Depends(require_auth)):
 async def system_logs(lines: int = 50, service: str = "ubunturouter", auth=Depends(require_auth)):
     """查看系统日志"""
     try:
+        cmd = ["journalctl", "-n", str(lines), "--no-pager", "-o", "short-precise"]
+        if service != "all":
+            cmd = ["journalctl", "-u", service, "-n", str(lines), "--no-pager", "-o", "short-precise"]
         r = subprocess.run(
-            ["journalctl", "-u", service, "-n", str(lines), "--no-pager", "-o", "short-precise"],
+            cmd,
             capture_output=True, text=True, timeout=10
         )
         return {"service": service, "lines": r.stdout.split("\n")}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/logs/kernel")
+async def kernel_logs(lines: int = 50, auth=Depends(require_auth)):
+    """查看内核日志 (dmesg)"""
+    try:
+        r = subprocess.run(
+            ["dmesg", "--level=emerg,alert,crit,err,warn,notice,info", "--human", "--nopager"],
+            capture_output=True, text=True, timeout=10
+        )
+        all_lines = r.stdout.strip().split("\n")
+        return {"lines": all_lines[-lines:]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/logs/firewall")
+async def firewall_logs(lines: int = 50, auth=Depends(require_auth)):
+    """查看防火墙日志 (nftables / kernel)"""
+    try:
+        # Try nftables trace log first, fallback to kernel log containing nft
+        r = subprocess.run(
+            ["journalctl", "-k", "-n", str(lines * 2), "--no-pager", "-o", "short-precise",
+             "-g", "nft|nftables|NF_TABLE"],
+            capture_output=True, text=True, timeout=10
+        )
+        all_lines = r.stdout.strip().split("\n")
+        if len(all_lines) < 3:
+            # Fallback: last kernel logs
+            r2 = subprocess.run(
+                ["journalctl", "-k", "-n", str(lines), "--no-pager", "-o", "short-precise"],
+                capture_output=True, text=True, timeout=10
+            )
+            all_lines = r2.stdout.strip().split("\n")
+        return {"lines": all_lines[-lines:]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─── 主机名/时区/NTP ─────────────────────────────────────────────
+
+
+class HostnameRequest(BaseModel):
+    hostname: str
+
+
+@router.post("/hostname")
+async def set_hostname(body: HostnameRequest, auth=Depends(require_auth)):
+    """修改主机名"""
+    hostname = body.hostname.strip()
+    if not hostname:
+        raise HTTPException(status_code=400, detail="主机名不能为空")
+    try:
+        # Validate hostname format
+        if not all(c.isalnum() or c in "-." for c in hostname):
+            raise HTTPException(status_code=400, detail="主机名包含非法字符")
+        subprocess.run(["hostnamectl", "set-hostname", hostname], check=True, timeout=10)
+        return {"message": f"主机名已更新为 {hostname}", "hostname": hostname}
+    except subprocess.CalledProcessError as e:
+        raise HTTPException(status_code=500, detail=f"设置主机名失败: {e.stderr}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/timezone")
+async def get_timezone(auth=Depends(require_auth)):
+    """获取当前时区"""
+    try:
+        r = subprocess.run(["timedatectl", "show", "--property=Timezone", "--value"],
+                           capture_output=True, text=True, timeout=10)
+        tz = r.stdout.strip()
+        # Also get list of all timezones for dropdown
+        r2 = subprocess.run(["timedatectl", "list-timezones"],
+                            capture_output=True, text=True, timeout=10)
+        timezones = [z.strip() for z in r2.stdout.strip().split("\n") if z.strip()]
+        return {"timezone": tz, "timezones": timezones}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class TimezoneRequest(BaseModel):
+    timezone: str
+
+
+@router.post("/timezone")
+async def set_timezone(body: TimezoneRequest, auth=Depends(require_auth)):
+    """设置时区"""
+    tz = body.timezone.strip()
+    if not tz:
+        raise HTTPException(status_code=400, detail="时区不能为空")
+    try:
+        subprocess.run(["timedatectl", "set-timezone", tz], check=True, timeout=10)
+        return {"message": f"时区已设置为 {tz}", "timezone": tz}
+    except subprocess.CalledProcessError as e:
+        raise HTTPException(status_code=500, detail=f"设置时区失败: {e.stderr}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class NtpRequest(BaseModel):
+    enabled: bool = True
+    servers: str = ""
+
+
+@router.post("/ntp")
+async def set_ntp(body: NtpRequest, auth=Depends(require_auth)):
+    """设置NTP (timedatectl)"""
+    try:
+        if body.enabled:
+            subprocess.run(["timedatectl", "set-ntp", "true"], check=True, timeout=10)
+            if body.servers.strip():
+                # Set NTP servers via systemd-timesyncd config
+                config = (
+                    "[Time]\n"
+                    f"NTP={body.servers.strip()}\n"
+                )
+                Path("/etc/systemd/timesyncd.conf.d/").mkdir(parents=True, exist_ok=True)
+                Path("/etc/systemd/timesyncd.conf.d/99-ubunturouter.conf").write_text(config)
+                subprocess.run(["systemctl", "restart", "systemd-timesyncd"], check=True, timeout=10)
+            return {"message": "NTP 已启用", "enabled": True, "servers": body.servers.strip()}
+        else:
+            subprocess.run(["timedatectl", "set-ntp", "false"], check=True, timeout=10)
+            return {"message": "NTP 已禁用", "enabled": False}
+    except subprocess.CalledProcessError as e:
+        raise HTTPException(status_code=500, detail=f"设置NTP失败: {e.stderr}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─── 密码/SSH密钥管理 ────────────────────────────────────────────
+
+
+class PasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.post("/password")
+async def change_password(body: PasswordRequest, auth=Depends(require_auth)):
+    """修改当前用户密码 (passwd)"""
+    try:
+        # Use passwd via stdin
+        proc = subprocess.Popen(
+            ["passwd"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        stdout, stderr = proc.communicate(
+            input=f"{body.current_password}\n{body.new_password}\n{body.new_password}\n",
+            timeout=10
+        )
+        if proc.returncode != 0:
+            raise HTTPException(status_code=400, detail=f"密码修改失败: {stderr.strip()}")
+        return {"message": "密码已更新"}
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="passwd 超时")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/ssh-keys")
+async def get_ssh_keys(auth=Depends(require_auth)):
+    """读取当前用户的 SSH 公钥列表"""
+    try:
+        username = pwd.getpwuid(os.getuid()).pw_name
+        ssh_dir = Path(f"/home/{username}/.ssh")
+        auth_keys = ssh_dir / "authorized_keys"
+
+        keys = []
+        if auth_keys.exists():
+            content = auth_keys.read_text()
+            for i, line in enumerate(content.strip().split("\n")):
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    parts = line.split()
+                    key_type = parts[0] if len(parts) > 0 else ""
+                    key_comment = parts[2] if len(parts) > 2 else ""
+                    # Truncate key for display
+                    key_fingerprint = parts[1][:40] + "..." if len(parts) > 1 and len(parts[1]) > 40 else (parts[1] if len(parts) > 1 else "")
+                    keys.append({
+                        "id": i,
+                        "type": key_type,
+                        "fingerprint": key_fingerprint,
+                        "comment": key_comment,
+                        "full_key": line,
+                    })
+        return {"keys": keys, "username": username}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class SshKeyRequest(BaseModel):
+    key: str
+
+
+@router.post("/ssh-keys")
+async def add_ssh_key(body: SshKeyRequest, auth=Depends(require_auth)):
+    """添加 SSH 公钥"""
+    key = body.key.strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="公钥不能为空")
+    try:
+        # Check if it looks like a valid SSH key
+        if not any(key.startswith(prefix) for prefix in ["ssh-rsa", "ssh-ed25519", "ssh-dss", "ecdsa-sha2", "sk-"]):
+            raise HTTPException(status_code=400, detail="无效的 SSH 公钥格式")
+        username = pwd.getpwuid(os.getuid()).pw_name
+        ssh_dir = Path(f"/home/{username}/.ssh")
+        ssh_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        auth_keys = ssh_dir / "authorized_keys"
+
+        # Append the key (ensure newline at end)
+        with open(auth_keys, "a") as f:
+            if auth_keys.stat().st_size > 0:
+                f.write("\n")
+            f.write(key + "\n")
+        auth_keys.chmod(0o600)
+        return {"message": "公钥已添加"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class SshKeyDeleteRequest(BaseModel):
+    id: int
+
+
+@router.delete("/ssh-keys")
+async def delete_ssh_key(body: SshKeyDeleteRequest, auth=Depends(require_auth)):
+    """删除 SSH 公钥"""
+    try:
+        username = pwd.getpwuid(os.getuid()).pw_name
+        auth_keys = Path(f"/home/{username}/.ssh/authorized_keys")
+        if not auth_keys.exists():
+            raise HTTPException(status_code=404, detail="authorized_keys 文件不存在")
+        content = auth_keys.read_text()
+        lines = content.strip().split("\n")
+        # Filter out comments and empty lines for ID mapping
+        key_lines = []
+        for line in lines:
+            line_s = line.strip()
+            if line_s and not line_s.startswith("#"):
+                key_lines.append(line_s)
+
+        if body.id < 0 or body.id >= len(key_lines):
+            raise HTTPException(status_code=404, detail="密钥索引不存在")
+
+        # Find the actual line to remove
+        target = key_lines[body.id]
+        new_lines = [l for l in lines if l.strip() != target]
+
+        if len(new_lines) == len(lines):
+            raise HTTPException(status_code=404, detail="未找到匹配的密钥")
+
+        auth_keys.write_text("\n".join(new_lines) + "\n")
+        return {"message": "公钥已删除"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

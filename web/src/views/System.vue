@@ -5,13 +5,30 @@
     </div>
 
     <el-row :gutter="20">
+      <!-- 左侧：系统信息 + 编辑 -->
       <el-col :span="12">
         <el-card class="system-card">
           <template #header><span>系统信息</span></template>
           <div class="info-grid" v-if="systemInfo">
             <div class="info-row">
               <span class="label">主机名</span>
-              <span class="value">{{ systemInfo.hostname }}</span>
+              <div class="value-row">
+                <el-input
+                  v-if="editing.hostname"
+                  v-model="form.hostname"
+                  size="small"
+                  style="width: 200px"
+                  placeholder="输入主机名"
+                />
+                <span v-else class="value">{{ systemInfo.hostname }}</span>
+                <el-button
+                  :type="editing.hostname ? 'primary' : 'default'"
+                  size="small"
+                  :icon="editing.hostname ? 'Check' : 'Edit'"
+                  circle
+                  @click="editing.hostname ? saveHostname() : startEdit('hostname')"
+                />
+              </div>
             </div>
             <div class="info-row">
               <span class="label">系统</span>
@@ -26,8 +43,60 @@
           </div>
           <el-skeleton :rows="3" animated v-else />
         </el-card>
+
+        <!-- 时区设置 -->
+        <el-card class="system-card">
+          <template #header><span>时区设置</span></template>
+          <div class="info-grid" v-if="timezoneData">
+            <div class="info-row">
+              <span class="label">当前时区</span>
+              <div class="value-row">
+                <el-select
+                  v-model="form.timezone"
+                  size="small"
+                  filterable
+                  style="width: 240px"
+                  :loading="tzLoading"
+                  @change="saveTimezone"
+                >
+                  <el-option
+                    v-for="tz in timezoneData.timezones"
+                    :key="tz"
+                    :label="tz"
+                    :value="tz"
+                  />
+                </el-select>
+              </div>
+            </div>
+          </div>
+          <el-skeleton :rows="1" animated v-else />
+        </el-card>
+
+        <!-- NTP 设置 -->
+        <el-card class="system-card">
+          <template #header><span>NTP 时间同步</span></template>
+          <div class="info-grid">
+            <div class="info-row">
+              <span class="label">启用 NTP</span>
+              <el-switch v-model="form.ntpEnabled" @change="saveNtp" />
+            </div>
+            <div class="info-row" v-if="form.ntpEnabled">
+              <span class="label">NTP 服务器</span>
+              <div class="value-row">
+                <el-input
+                  v-model="form.ntpServers"
+                  size="small"
+                  style="width: 280px"
+                  placeholder="ntp.ubuntu.com"
+                />
+                <el-button size="small" type="primary" @click="saveNtp">应用</el-button>
+              </div>
+            </div>
+          </div>
+        </el-card>
       </el-col>
 
+      <!-- 右侧：服务状态 -->
       <el-col :span="12">
         <el-card class="system-card">
           <template #header><span>服务状态</span></template>
@@ -68,22 +137,93 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { api } from '@/stores'
+import { ElMessage } from 'element-plus'
 
 const systemInfo = ref(null)
 const snapshots = ref([])
 const snapLoading = ref(false)
+const tzLoading = ref(false)
+const timezoneData = ref(null)
+
+const editing = reactive({
+  hostname: false,
+})
+
+const form = reactive({
+  hostname: '',
+  timezone: '',
+  ntpEnabled: true,
+  ntpServers: '',
+})
 
 onMounted(async () => {
   try {
     const res = await api.get('/system/status')
     systemInfo.value = res.data
+    form.hostname = res.data.hostname
   } catch (e) {
     console.error('获取系统信息失败:', e)
   }
+  await fetchTimezones()
   await fetchSnapshots()
 })
+
+function startEdit(field) {
+  if (field === 'hostname') {
+    form.hostname = systemInfo.value?.hostname || ''
+    editing.hostname = true
+  }
+}
+
+async function saveHostname() {
+  if (!form.hostname.trim()) {
+    ElMessage.warning('主机名不能为空')
+    return
+  }
+  try {
+    const res = await api.post('/system/hostname', { hostname: form.hostname.trim() })
+    systemInfo.value.hostname = form.hostname.trim()
+    editing.hostname = false
+    ElMessage.success(res.data.message)
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || '设置主机名失败')
+  }
+}
+
+async function fetchTimezones() {
+  tzLoading.value = true
+  try {
+    const res = await api.get('/system/timezone')
+    timezoneData.value = res.data
+    form.timezone = res.data.timezone
+  } catch (e) {
+    console.error('获取时区列表失败:', e)
+  }
+  tzLoading.value = false
+}
+
+async function saveTimezone(tz) {
+  try {
+    const res = await api.post('/system/timezone', { timezone: tz })
+    ElMessage.success(res.data.message)
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || '设置时区失败')
+  }
+}
+
+async function saveNtp() {
+  try {
+    const res = await api.post('/system/ntp', {
+      enabled: form.ntpEnabled,
+      servers: form.ntpServers,
+    })
+    ElMessage.success(res.data.message)
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || '设置NTP失败')
+  }
+}
 
 async function fetchSnapshots() {
   snapLoading.value = true
@@ -103,8 +243,9 @@ async function fetchSnapshots() {
 .system-card { margin-bottom: 20px; }
 .info-grid { display: flex; flex-direction: column; gap: 12px; }
 .info-row { display: flex; justify-content: space-between; align-items: center; }
-.info-row .label { color: #888; font-size: 14px; }
+.info-row .label { color: #888; font-size: 14px; flex-shrink: 0; margin-right: 12px; }
 .info-row .value { color: #ccc; font-size: 14px; }
+.value-row { display: flex; align-items: center; gap: 8px; }
 .service-list { display: flex; flex-direction: column; gap: 8px; }
 .service-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; }
 .service-name { color: #ccc; font-size: 14px; }

@@ -21,7 +21,7 @@ export default [
         path: 'ssh-keys',
         name: 'SystemSshKeys',
         meta: { title: 'SSH 密钥' },
-        component: () => import('@/views/SystemSshKeysPlaceholder.vue'),
+        component: () => import('@/views/SystemSshKeys.vue'),
       },
       {
         path: 'software',

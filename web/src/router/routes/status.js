@@ -45,7 +45,7 @@ export default [
         path: 'syslog',
         name: 'StatusSyslog',
         meta: { title: '系统日志' },
-        component: () => import('@/views/StatusLogPlaceholder.vue'), // 临时占位
+        component: () => import('@/views/SyslogView.vue'),
       },
       {
         path: 'processes',
