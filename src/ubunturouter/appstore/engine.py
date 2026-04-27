@@ -203,14 +203,108 @@ def _extract_volumes_from_compose(compose_path: Path) -> List[Dict]:
 
 
 _CATEGORY_I18N = {
-    "database": "数据库", "tool": "工具", "runtime": "运行环境",
-    "middleware": "中间件", "storage": "存储", "network": "网络",
-    "business": "商业软件", "website": "网站",
-    "monitor": "系统监控", "download": "下载工具", "nas": "NAS",
-    "service": "服务", "messaging": "消息通讯", "server": "服务器",
-    "multimedia": "多媒体", "ai": "人工智能", "networking": "网络工具",
-    "security": "安全", "development": "开发工具",
+    # 数据库 / 存储
+    "database": "数据库", "storage": "存储", "nas": "NAS",
+    "cache": "缓存", "kvstore": "键值存储",
+    # 网络 / 工具
+    "network": "网络", "networking": "网络工具", "download": "下载工具",
+    "proxy": "代理", "dns": "DNS", "vpn": "VPN",
+    # 开发 / 运行环境
+    "development": "开发工具", "dev": "开发工具",
+    "runtime": "运行环境", "middleware": "中间件",
+    "server": "服务器", "webserver": "Web 服务器",
+    # 安全
+    "security": "安全", "auth": "认证",
+    # 媒体 / 网站
+    "website": "网站", "webapp": "Web 应用",
+    "multimedia": "多媒体", "media": "媒体管理",
+    "tool": "工具", "utility": "实用工具",
+    # 业务 / 监控
+    "business": "商业软件", "cms": "内容管理", "erp": "企业管理",
+    "monitor": "系统监控", "monitoring": "监控", "logging": "日志管理",
+    # 通讯 / AI
+    "messaging": "消息通讯", "social": "社交",
+    "ai": "人工智能", "llm": "大语言模型",
+    # 路由器专用
+    "service": "服务", "router": "路由器功能",
+    "iot": "物联网", "smart-home": "智能家居",
+    # 通用兜底
+    "other": "其他", "": "其他",
 }
+
+# 根据应用名称/描述/Tag 自动推断分类的关键词规则
+_CATEGORY_INFERENCE_RULES = [
+    # 数据库
+    (["mysql", "postgres", "postgresql", "mariadb", "mongodb", "redis", "sqlite",
+      "clickhouse", "influxdb", "couchdb", "elasticsearch", "neo4j", "cassandra",
+      "database", "数据库"], "数据库"),
+    # NAS / 存储
+    (["nas", "syncthing", "seafile", "nextcloud", "owncloud", "minio",
+      "cloud", "网盘", "文件管理", "filebrowser", "file", "hdd", "raid",
+      "rsync", "samba", "nfs", "存储"], "NAS"),
+    # 下载工具
+    (["aria2", "qbittorrent", "transmission", "deluge", "utorrent",
+      "bt", "torrent", "磁力", "下载", "downloader", "jdownloader",
+      "youtube-dl", "yt-dlp"], "下载工具"),
+    # 网络工具
+    (["nginx", "caddy", "haproxy", "traefik", "frp", "socat", "tailscale",
+      "wireguard", "openvpn", "vpn", "ddns", "dns", "dhcp", "proxy",
+      "adguard", "pi-hole", "bind9", "代理", "网络"], "网络工具"),
+    # 安全
+    (["crowdsec", "fail2ban", "vaultwarden", "bitwarden", "keycloak",
+      "authentik", "authelia", "oauth", "ldap", "sso", "waf",
+      "安全", "防火墙", "密码管理", "antivirus"], "安全"),
+    # 媒体
+    (["jellyfin", "plex", "emby", "calibre", "komga", "stash",
+      "navidrome", "subsonic", "音流", "音乐", "视频", "photo",
+      "immich", "photoprism", "lychee", "piwigo", "gallery",
+      "多媒体", "媒体"], "多媒体"),
+    # 监控
+    (["grafana", "prometheus", "netdata", "uptime", "kuma", "monitor",
+      "checkmk", "zabbix", "icinga", "nagios", "ctop", "htop",
+      "监控", "仪表盘", "metrics"], "系统监控"),
+    # Web 应用 / 网站
+    (["wordpress", "halo", "ghost", "hugo", "jekyll", "hexo",
+      "blog", "cms", "网站", "博客", "论坛", "bbs", "discourse",
+      "flarum", "nodebb"], "网站"),
+    # 消息通讯
+    (["signal", "telegram", "whatsapp", "matrix", "element", "rocket",
+      "mattermost", "slack", "discord", "wechat", "微信",
+      "消息", "通讯", "chat", "聊天", "im"], "消息通讯"),
+    # AI
+    (["ollama", "openai", "llama", "gpt", "stable-diffusion",
+      "comfyui", "automatic1111", "text-generation", "transformer",
+      "人工智能", "ai", "llm", "大模型", "chatgpt"], "人工智能"),
+    # IoT / 智能家居
+    (["home-assistant", "homeassistant", "hass", "mqtt", "emqx",
+      "zigbee", "zwave", "esphome", "tasmota", "openhab",
+      "智能家居", "iot", "物联网"], "物联网"),
+    # 开发工具
+    (["gitlab", "jenkins", "gitea", "gogs", "sonarqube", "code-server",
+      "vscode", "jupyter", "postman", "swagger", "api",
+      "开发", "ci/cd", "devops", "git"], "开发工具"),
+    # 缓存 / 中间件
+    (["rabbitmq", "kafka", "nats", "zeromq", "memcached", "varnish",
+      "squid", "缓存", "消息队列", "queue", "中间件"], "中间件"),
+    # DNS
+    (["bind", "unbound", "dnscrypt", "stubby", "dnsmasq", "powerdns",
+      "dns"], "DNS"),
+]
+
+# 存一份中文→英文反向映射用于前端显示
+_CATEGORY_CN_MAP = {v: k for k, v in _CATEGORY_I18N.items()}
+
+
+def _infer_category(app_name: str, description: str = "", tags: list = None) -> str:
+    """根据应用名称、描述和标签推断分类"""
+    if tags is None:
+        tags = []
+    combined = f"{app_name} {description} {' '.join(tags)}".lower()
+    for keywords, category in _CATEGORY_INFERENCE_RULES:
+        for kw in keywords:
+            if kw.lower() in combined:
+                return category
+    return "其他"
 
 
 def parse_onepanel_manifest(manifest_path: Path) -> Optional[AppManifest]:
@@ -240,7 +334,10 @@ def parse_onepanel_manifest(manifest_path: Path) -> Optional[AppManifest]:
     additional_props = data.get("additionalProperties", data.get("additional_properties", {}))
     category = "其他"
     if isinstance(additional_props, dict):
-        category = additional_props.get("type", data.get("type", "其他"))
+        category = additional_props.get("type", data.get("type", ""))
+    # 如果 data.yml 没有 type 字段，尝试自动推断
+    if not category or category == "":
+        category = _infer_category(name, description, data.get("tags", []))
     category = _CATEGORY_I18N.get(category, category)
 
     icon = data.get("icon", "")
