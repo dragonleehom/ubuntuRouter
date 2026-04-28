@@ -37,120 +37,205 @@
       </el-col>
     </el-row>
 
-    <!-- WireGuard / Tailscale 标签页 -->
+    <!-- 协议标签页 -->
     <el-tabs v-model="activeTab">
+      <!-- ─── WireGuard ─── -->
       <el-tab-pane label="WireGuard" name="wireguard">
-
-    <!-- 隧道列表 -->
-    <el-card shadow="never" class="section-card">
-      <template #header>
-        <div class="card-header">
-          <span style="color:#ccc;">WireGuard 隧道</span>
-          <el-button type="primary" size="small" @click="showAddTunnel = true">
-            <el-icon style="margin-right:4px"><Plus /></el-icon>创建隧道
-          </el-button>
-        </div>
-      </template>
-      <el-table :data="tunnels" stripe size="small" v-loading="loading">
-        <el-table-column prop="name" label="名称" width="100" />
-        <el-table-column prop="public_key" label="公钥" min-width="200" class="hide-mobile">
-          <template #default="{ row }">
-            <code style="font-size:11px;color:#999;">{{ row.public_key ? row.public_key.substring(0, 32) + '...' : '-' }}</code>
+        <el-card shadow="never" class="section-card">
+          <template #header>
+            <div class="card-header">
+              <span style="color:#ccc;">WireGuard 隧道</span>
+              <el-button type="primary" size="small" @click="showAddTunnel = true">
+                <el-icon style="margin-right:4px"><Plus /></el-icon>创建隧道
+              </el-button>
+            </div>
           </template>
-        </el-table-column>
-        <el-table-column prop="listen_port" label="端口" width="80" class="hide-mobile" />
-        <el-table-column prop="address" label="隧道 IP" width="140" class="hide-mobile" />
-        <el-table-column prop="peers_count" label="Peer 数" width="80" align="right" class="hide-mobile" />
-        <el-table-column label="状态" width="80">
-          <template #default="{ row }">
-            <el-tag :type="row.running ? 'success' : 'info'" size="small">
-              {{ row.running ? '运行中' : '已停止' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
-          <template #default="{ row }">
-            <el-button v-if="!row.running" size="small" type="success" text @click="startTunnel(row)">启动</el-button>
-            <el-button v-else size="small" type="warning" text @click="stopTunnel(row)">停止</el-button>
-            <el-button size="small" type="primary" text @click="showTunnelDetail(row)">详情</el-button>
-            <el-button size="small" type="danger" text @click="deleteTunnel(row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-      <el-empty v-if="tunnels.length === 0" description="暂无 VPN 隧道" />
-    </el-card>
+          <el-table :data="tunnels" stripe size="small" v-loading="loading">
+            <el-table-column prop="name" label="名称" width="100" />
+            <el-table-column prop="public_key" label="公钥" min-width="200" class="hide-mobile">
+              <template #default="{ row }">
+                <code style="font-size:11px;color:#999;">{{ row.public_key ? row.public_key.substring(0, 32) + '...' : '-' }}</code>
+              </template>
+            </el-table-column>
+            <el-table-column prop="listen_port" label="端口" width="80" class="hide-mobile" />
+            <el-table-column prop="address" label="隧道 IP" width="140" class="hide-mobile" />
+            <el-table-column prop="peers_count" label="Peer 数" width="80" align="right" class="hide-mobile" />
+            <el-table-column label="状态" width="80">
+              <template #default="{ row }">
+                <el-tag :type="row.running ? 'success' : 'info'" size="small">{{ row.running ? '运行中' : '已停止' }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="200" fixed="right">
+              <template #default="{ row }">
+                <el-button v-if="!row.running" size="small" type="success" text @click="startTunnel(row)">启动</el-button>
+                <el-button v-else size="small" type="warning" text @click="stopTunnel(row)">停止</el-button>
+                <el-button size="small" type="primary" text @click="showTunnelDetail(row)">详情</el-button>
+                <el-button size="small" type="danger" text @click="deleteTunnel(row)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          <el-empty v-if="tunnels.length === 0" description="暂无 VPN 隧道" />
+        </el-card>
       </el-tab-pane>
 
-      <el-tab-pane label="Tailscale" name="tailscale">
+      <!-- ─── PPTP ─── -->
+      <el-tab-pane label="PPTP" name="pptp">
         <div class="toolbar">
-          <el-button size="small" @click="fetchTailscaleStatus" :loading="tsLoading">
-            <el-icon style="margin-right:4px"><Refresh /></el-icon>刷新
-          </el-button>
-          <el-button v-if="!tsStatus.running" size="small" type="success" @click="tailscaleUp" :loading="tsOperating">
-            启动 Tailscale
-          </el-button>
-          <el-button v-else size="small" type="danger" @click="tailscaleDown" :loading="tsOperating">
-            停止 Tailscale
+          <el-tag :type="pptpStatus.running ? 'success' : 'info'" size="default" style="margin-right:12px">
+            {{ pptpStatus.running ? '● 运行中' : '○ 已停止' }}
+          </el-tag>
+          <el-button size="small" @click="fetchPptpUsers">刷新</el-button>
+          <el-button v-if="!pptpStatus.running" size="small" type="success" @click="pptpStart">启动服务</el-button>
+          <el-button v-else size="small" type="warning" @click="pptpStop">停止服务</el-button>
+          <el-button type="primary" size="small" @click="showAddPptpUser = true">
+            <el-icon style="margin-right:4px"><Plus /></el-icon>添加用户
           </el-button>
         </div>
-
-        <!-- Tailscale 自身信息 -->
-        <el-card shadow="never" class="section-card" v-if="tsStatus.running">
-          <template #header><span style="color:#ccc;">本机信息</span></template>
-          <div class="ts-self">
-            <div class="ts-self-row">
-              <span class="ts-label">主机名</span>
-              <span class="ts-value">{{ tsStatus.self?.hostname || '-' }}</span>
-            </div>
-            <div class="ts-self-row">
-              <span class="ts-label">DNS 名称</span>
-              <span class="ts-value">{{ tsStatus.self?.dns_name || '-' }}</span>
-            </div>
-            <div class="ts-self-row">
-              <span class="ts-label">Tailscale IP</span>
-              <span class="ts-value">
-                <el-tag v-for="ip in (tsStatus.self?.ip || [])" :key="ip" size="small" style="margin:1px">{{ ip }}</el-tag>
-              </span>
-            </div>
-            <div class="ts-self-row">
-              <span class="ts-label">版本</span>
-              <span class="ts-value">{{ tsStatus.version || '-' }}</span>
-            </div>
-          </div>
-        </el-card>
-
-        <!-- Peer 列表 -->
-        <el-card shadow="never" class="section-card" style="margin-top:12px" v-if="tsStatus.running">
-          <template #header>
-            <span style="color:#ccc;">Peer 列表 ({{ tsStatus.peer_count }})</span>
-          </template>
-          <el-table :data="tsStatus.peers || []" stripe size="small">
-            <el-table-column prop="hostname" label="主机名" min-width="150" />
-            <el-table-column label="IP" min-width="160" class="hide-mobile">
+        <el-card shadow="never" class="section-card">
+          <template #header><span style="color:#ccc;">PPTP 用户 ({{ pptpUsers.length }})</span></template>
+          <el-table :data="pptpUsers" stripe size="small" v-loading="pptpLoading">
+            <el-table-column prop="username" label="用户名" min-width="200" />
+            <el-table-column label="操作" width="100">
               <template #default="{ row }">
-                <el-tag v-for="ip in (row.ip || [])" :key="ip" size="small" style="margin:1px">{{ ip }}</el-tag>
+                <el-button text type="danger" size="small" @click="deletePptpUser(row)">删除</el-button>
               </template>
             </el-table-column>
-            <el-table-column prop="os" label="系统" width="80" class="hide-mobile" />
-            <el-table-column label="在线" width="80">
-              <template #default="{ row }">
-                <el-tag :type="row.online ? 'success' : 'info'" size="small">
-                  {{ row.online ? '在线' : '离线' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="接收" width="100" align="right" class="hide-mobile">
-              <template #default="{ row }">{{ formatBytes(row.rx_bytes) }}</template>
-            </el-table-column>
-            <el-table-column label="发送" width="100" align="right" class="hide-mobile">
-              <template #default="{ row }">{{ formatBytes(row.tx_bytes) }}</template>
-            </el-table-column>
-            <el-table-column prop="relay" label="中继" width="160" class="hide-mobile" />
           </el-table>
-          <el-empty v-if="!tsStatus.peers || tsStatus.peers.length === 0" description="无 Peer" />
+          <el-empty v-if="pptpUsers.length === 0 && !pptpLoading" description="暂无 PPTP 用户" />
         </el-card>
+        <el-dialog v-model="showAddPptpUser" title="添加 PPTP 用户" width="400px">
+          <el-form :model="newPptpUser" label-width="80px" size="small">
+            <el-form-item label="用户名"><el-input v-model="newPptpUser.username" placeholder="输入用户名" /></el-form-item>
+            <el-form-item label="密码"><el-input v-model="newPptpUser.password" type="password" show-password placeholder="输入密码" /></el-form-item>
+          </el-form>
+          <template #footer>
+            <el-button @click="showAddPptpUser = false">取消</el-button>
+            <el-button type="primary" @click="addPptpUser">添加</el-button>
+          </template>
+        </el-dialog>
+      </el-tab-pane>
 
-        <el-empty v-if="!tsStatus.running && !tsLoading" :description="tsStatus.error || 'Tailscale 未运行'" />
+      <!-- ─── IPSec ─── -->
+      <el-tab-pane label="IPSec/IKEv2" name="ipsec">
+        <div class="toolbar">
+          <el-tag :type="ipsecStatus.running ? 'success' : 'info'" size="default" style="margin-right:12px">
+            {{ ipsecStatus.running ? '● 运行中' : '○ 已停止' }}
+          </el-tag>
+          <el-button size="small" @click="fetchIpsecData">刷新</el-button>
+          <el-button v-if="!ipsecStatus.running" size="small" type="success" @click="ipsecStart">启动服务</el-button>
+          <el-button v-else size="small" type="warning" @click="ipsecStop">停止服务</el-button>
+          <el-button size="small" type="primary" @click="ipsecGenerateCert" :loading="ipsecCertLoading">生成证书</el-button>
+          <el-button type="primary" size="small" @click="showAddIpsecUser = true">
+            <el-icon style="margin-right:4px"><Plus /></el-icon>添加用户
+          </el-button>
+        </div>
+        <el-row :gutter="12">
+          <el-col :span="12">
+            <el-card shadow="never" class="section-card">
+              <template #header><span style="color:#ccc;">配置</span></template>
+              <el-form :model="ipsecForm" label-width="100px" size="small">
+                <el-form-item label="PSK"><el-input v-model="ipsecForm.psk" placeholder="预共享密钥" /></el-form-item>
+                <el-form-item label="本地子网"><el-input v-model="ipsecForm.left_subnet" placeholder="如 192.168.1.0/24" /></el-form-item>
+                <el-form-item label="端口"><el-input v-model.number="ipsecForm.ports" placeholder="500" /></el-form-item>
+                <el-form-item label="DNS1"><el-input v-model="ipsecForm.dns1" placeholder="8.8.8.8" /></el-form-item>
+                <el-form-item label="DNS2"><el-input v-model="ipsecForm.dns2" placeholder="8.8.4.4" /></el-form-item>
+                <el-button type="primary" size="small" @click="ipsecSaveConfig" :loading="ipsecConfigLoading">保存配置</el-button>
+              </el-form>
+            </el-card>
+          </el-col>
+          <el-col :span="12">
+            <el-card shadow="never" class="section-card">
+              <template #header><span style="color:#ccc;">用户 ({{ ipsecUsers.length }})</span></template>
+              <el-table :data="ipsecUsers" stripe size="small" v-loading="ipsecUserLoading">
+                <el-table-column prop="username" label="用户名" min-width="120" />
+                <el-table-column label="导出" width="80">
+                  <template #default="{ row }">
+                    <el-button text type="primary" size="small" @click="ipsecExportConfig(row.username)">
+                      导出
+                    </el-button>
+                  </template>
+                </el-table-column>
+                <el-table-column label="删除" width="60">
+                  <template #default="{ row }">
+                    <el-button text type="danger" size="small" @click="deleteIpsecUser(row)">×</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <el-empty v-if="ipsecUsers.length === 0 && !ipsecUserLoading" description="暂无用户" />
+            </el-card>
+          </el-col>
+        </el-row>
+        <el-dialog v-model="showAddIpsecUser" title="添加 IPSec 用户" width="400px">
+          <el-form :model="newIpsecUser" label-width="80px" size="small">
+            <el-form-item label="用户名"><el-input v-model="newIpsecUser.username" placeholder="输入用户名" /></el-form-item>
+            <el-form-item label="密码"><el-input v-model="newIpsecUser.password" type="password" show-password placeholder="输入密码" /></el-form-item>
+          </el-form>
+          <template #footer>
+            <el-button @click="showAddIpsecUser = false">取消</el-button>
+            <el-button type="primary" @click="addIpsecUser">添加</el-button>
+          </template>
+        </el-dialog>
+      </el-tab-pane>
+
+      <!-- ─── OpenVPN ─── -->
+      <el-tab-pane label="OpenVPN" name="openvpn">
+        <div class="toolbar">
+          <el-tag :type="openvpnStatus.running ? 'success' : 'info'" size="default" style="margin-right:12px">
+            {{ openvpnStatus.running ? '● 运行中' : '○ 已停止' }}
+          </el-tag>
+          <el-button size="small" @click="fetchOpenvpnData">刷新</el-button>
+          <el-button v-if="!openvpnStatus.running" size="small" type="success" @click="openvpnStart">启动服务</el-button>
+          <el-button v-else size="small" type="warning" @click="openvpnStop">停止服务</el-button>
+          <el-button size="small" type="warning" @click="openvpnInitPki" :loading="openvpnPkiLoading">初始化 PKI</el-button>
+          <el-button type="primary" size="small" @click="showAddOvpnClient = true">
+            <el-icon style="margin-right:4px"><Plus /></el-icon>添加客户端
+          </el-button>
+        </div>
+        <el-row :gutter="12">
+          <el-col :span="10">
+            <el-card shadow="never" class="section-card">
+              <template #header><span style="color:#ccc;">配置</span></template>
+              <el-form :model="openvpnForm" label-width="100px" size="small">
+                <el-form-item label="协议"><el-select v-model="openvpnForm.proto"><el-option label="TCP" value="tcp" /><el-option label="UDP" value="udp" /></el-select></el-form-item>
+                <el-form-item label="端口"><el-input-number v-model="openvpnForm.port" :min="1" :max="65535" /></el-form-item>
+                <el-form-item label="加密"><el-input v-model="openvpnForm.cipher" placeholder="AES-256-GCM" /></el-form-item>
+                <el-form-item label="认证"><el-input v-model="openvpnForm.auth" placeholder="SHA256" /></el-form-item>
+                <el-button type="primary" size="small" @click="openvpnSaveConfig">保存配置</el-button>
+              </el-form>
+            </el-card>
+          </el-col>
+          <el-col :span="14">
+            <el-card shadow="never" class="section-card">
+              <template #header><span style="color:#ccc;">客户端 ({{ openvpnClients.length }})</span></template>
+              <el-table :data="openvpnClients" stripe size="small" v-loading="openvpnClientLoading">
+                <el-table-column prop="name" label="名称" min-width="100" />
+                <el-table-column prop="valid_until" label="有效期" min-width="130" class="hide-mobile" />
+                <el-table-column label="导出" width="70">
+                  <template #default="{ row }">
+                    <el-button text type="primary" size="small" @click="openvpnExportConfig(row.name)">
+                      下载
+                    </el-button>
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="70">
+                  <template #default="{ row }">
+                    <el-button text type="danger" size="small" @click="revokeOpenvpnClient(row)">撤销</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <el-empty v-if="openvpnClients.length === 0 && !openvpnClientLoading" description="暂无客户端" />
+            </el-card>
+          </el-col>
+        </el-row>
+        <el-dialog v-model="showAddOvpnClient" title="添加 OpenVPN 客户端" width="400px">
+          <el-form :model="newOvpnClient" label-width="100px" size="small">
+            <el-form-item label="客户端名称"><el-input v-model="newOvpnClient.name" placeholder="如 phone, laptop" /></el-form-item>
+          </el-form>
+          <template #footer>
+            <el-button @click="showAddOvpnClient = false">取消</el-button>
+            <el-button type="primary" @click="addOpenvpnClient">添加</el-button>
+          </template>
+        </el-dialog>
       </el-tab-pane>
     </el-tabs>
 
@@ -269,25 +354,37 @@ const showAddPeer = ref(false)
 const detail = reactive({ name: '', peers: [] })
 const selectedTunnelName = ref('')
 const activeTab = ref('wireguard')
-// Tailscale
-const tsLoading = ref(false)
-const tsOperating = ref(false)
-const tsStatus = reactive({ running: false, self: {}, peers: [], peer_count: 0, online_count: 0, version: '', error: '' })
 
-const newTunnel = reactive({
-  name: 'wg0',
-  listen_port: 51820,
-  address: '10.0.0.1/24',
-  dns: '',
-  mtu: 1420,
-})
+const newTunnel = reactive({ name: 'wg0', listen_port: 51820, address: '10.0.0.1/24', dns: '', mtu: 1420 })
+const newPeer = reactive({ public_key: '', endpoint: '', allowed_ips: '', persistent_keepalive: 25 })
 
-const newPeer = reactive({
-  public_key: '',
-  endpoint: '',
-  allowed_ips: '',
-  persistent_keepalive: 25,
-})
+// ── PPTP ──
+const pptpLoading = ref(false)
+const pptpUsers = ref([])
+const pptpStatus = reactive({ running: false })
+const showAddPptpUser = ref(false)
+const newPptpUser = reactive({ username: '', password: '' })
+
+// ── IPSec ──
+const ipsecLoading = ref(false)
+const ipsecUserLoading = ref(false)
+const ipsecConfigLoading = ref(false)
+const ipsecCertLoading = ref(false)
+const ipsecStatus = reactive({ running: false })
+const ipsecUsers = ref([])
+const ipsecForm = reactive({ psk: '', left_subnet: '', ports: 500, dns1: '', dns2: '' })
+const showAddIpsecUser = ref(false)
+const newIpsecUser = reactive({ username: '', password: '' })
+
+// ── OpenVPN ──
+const openvpnLoading = ref(false)
+const openvpnClientLoading = ref(false)
+const openvpnPkiLoading = ref(false)
+const openvpnStatus = reactive({ running: false })
+const openvpnClients = ref([])
+const openvpnForm = reactive({ proto: 'udp', port: 1194, cipher: 'AES-256-GCM', auth: 'SHA256' })
+const showAddOvpnClient = ref(false)
+const newOvpnClient = reactive({ name: '' })
 
 async function refreshData() {
   loading.value = true
@@ -400,39 +497,159 @@ async function removePeer(index) {
 
 onMounted(refreshData)
 
-async function fetchTailscaleStatus() {
-  tsLoading.value = true
+// ══════════════════════════════════════════════════════════
+// PPTP Methods
+// ══════════════════════════════════════════════════════════
+async function fetchPptpUsers() {
+  pptpLoading.value = true
   try {
-    const res = await api.get('/vpn/tailscale/status')
-    Object.assign(tsStatus, res.data)
-  } catch (e) {
-    ElMessage.error('获取 Tailscale 状态失败')
-  }
-  tsLoading.value = false
+    const [usersRes, statusRes] = await Promise.all([
+      api.get('/vpn/pptp/users').catch(() => ({ data: { users: [] } })),
+      api.get('/vpn/pptp/status').catch(() => ({ data: { running: false } })),
+    ])
+    pptpUsers.value = usersRes.data.users || []
+    Object.assign(pptpStatus, statusRes.data)
+  } catch (e) { /* ignore */ }
+  pptpLoading.value = false
+}
+async function pptpStart() {
+  try { await api.post('/vpn/pptp/start'); ElMessage.success('PPTP 已启动'); await fetchPptpUsers() }
+  catch (e) { ElMessage.error(e.response?.data?.detail || '启动失败') }
+}
+async function pptpStop() {
+  try { await api.post('/vpn/pptp/stop'); ElMessage.success('PPTP 已停止'); await fetchPptpUsers() }
+  catch (e) { ElMessage.error(e.response?.data?.detail || '停止失败') }
+}
+async function addPptpUser() {
+  try {
+    const res = await api.post('/vpn/pptp/users', { username: newPptpUser.username, password: newPptpUser.password })
+    ElMessage.success(res.data.message); showAddPptpUser.value = false; newPptpUser.username = ''; newPptpUser.password = ''; await fetchPptpUsers()
+  } catch (e) { ElMessage.error(e.response?.data?.detail || '添加失败') }
+}
+async function deletePptpUser(row) {
+  try {
+    await ElMessageBox.confirm(`确定删除用户 \"${row.username}\"？`, '确认')
+    await api.delete(`/vpn/pptp/users/${encodeURIComponent(row.username)}`)
+    ElMessage.success('用户已删除'); await fetchPptpUsers()
+  } catch { /* cancelled */ }
 }
 
-async function tailscaleUp() {
-  tsOperating.value = true
+// ══════════════════════════════════════════════════════════
+// IPSec Methods
+// ══════════════════════════════════════════════════════════
+async function fetchIpsecData() {
+  ipsecLoading.value = true
   try {
-    const res = await api.post('/vpn/tailscale/up')
-    ElMessage.success(res.data.message)
-    await fetchTailscaleStatus()
-  } catch (e) {
-    ElMessage.error(e.response?.data?.detail || '启动失败')
-  }
-  tsOperating.value = false
+    const [statusRes, configRes, usersRes] = await Promise.all([
+      api.get('/vpn/ipsec/status').catch(() => ({ data: { running: false } })),
+      api.get('/vpn/ipsec/config').catch(() => ({ data: {} })),
+      api.get('/vpn/ipsec/users').catch(() => ({ data: { users: [] } })),
+    ])
+    Object.assign(ipsecStatus, statusRes.data)
+    if (configRes.data.psk) Object.assign(ipsecForm, configRes.data)
+    ipsecUsers.value = usersRes.data.users || []
+  } catch (e) { /* ignore */ }
+  ipsecLoading.value = false
+}
+async function ipsecStart() {
+  try { await api.post('/vpn/ipsec/start'); ElMessage.success('IPSec 已启动'); await fetchIpsecData() }
+  catch (e) { ElMessage.error(e.response?.data?.detail || '启动失败') }
+}
+async function ipsecStop() {
+  try { await api.post('/vpn/ipsec/stop'); ElMessage.success('IPSec 已停止'); await fetchIpsecData() }
+  catch (e) { ElMessage.error(e.response?.data?.detail || '停止失败') }
+}
+async function ipsecGenerateCert() {
+  ipsecCertLoading.value = true
+  try { const res = await api.post('/vpn/ipsec/generate-cert'); ElMessage.success(res.data.message || '证书生成完成') }
+  catch (e) { ElMessage.error(e.response?.data?.detail || '证书生成失败') }
+  ipsecCertLoading.value = false
+}
+async function ipsecSaveConfig() {
+  ipsecConfigLoading.value = true
+  try { await api.put('/vpn/ipsec/config', ipsecForm); ElMessage.success('配置已保存') }
+  catch (e) { ElMessage.error(e.response?.data?.detail || '保存失败') }
+  ipsecConfigLoading.value = false
+}
+async function addIpsecUser() {
+  try {
+    const res = await api.post('/vpn/ipsec/users', { username: newIpsecUser.username, password: newIpsecUser.password })
+    ElMessage.success(res.data.message); showAddIpsecUser.value = false; newIpsecUser.username = ''; newIpsecUser.password = ''; await fetchIpsecData()
+  } catch (e) { ElMessage.error(e.response?.data?.detail || '添加失败') }
+}
+async function deleteIpsecUser(row) {
+  try {
+    await ElMessageBox.confirm(`确定删除用户 \"${row.username}\"？`, '确认')
+    await api.delete(`/vpn/ipsec/users/${encodeURIComponent(row.username)}`)
+    ElMessage.success('用户已删除'); await fetchIpsecData()
+  } catch { /* cancelled */ }
+}
+async function ipsecExportConfig(username) {
+  try {
+    const res = await api.get(`/vpn/ipsec/export-config/${encodeURIComponent(username)}`, { responseType: 'blob' })
+    const blob = new Blob([res.data], { type: 'application/x-apple-aspen-config' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = `${username}.mobileconfig`; a.click()
+    URL.revokeObjectURL(url)
+  } catch (e) { ElMessage.error('导出失败') }
 }
 
-async function tailscaleDown() {
-  tsOperating.value = true
+// ══════════════════════════════════════════════════════════
+// OpenVPN Methods
+// ══════════════════════════════════════════════════════════
+async function fetchOpenvpnData() {
+  openvpnLoading.value = true
   try {
-    const res = await api.post('/vpn/tailscale/down')
-    ElMessage.success(res.data.message)
-    await fetchTailscaleStatus()
-  } catch (e) {
-    ElMessage.error(e.response?.data?.detail || '停止失败')
-  }
-  tsOperating.value = false
+    const [statusRes, configRes, clientsRes] = await Promise.all([
+      api.get('/vpn/openvpn/status').catch(() => ({ data: { running: false } })),
+      api.get('/vpn/openvpn/config').catch(() => ({ data: {} })),
+      api.get('/vpn/openvpn/clients').catch(() => ({ data: { clients: [] } })),
+    ])
+    Object.assign(openvpnStatus, statusRes.data)
+    if (configRes.data.proto) Object.assign(openvpnForm, configRes.data)
+    openvpnClients.value = clientsRes.data.clients || []
+  } catch (e) { /* ignore */ }
+  openvpnLoading.value = false
+}
+async function openvpnStart() {
+  try { await api.post('/vpn/openvpn/start'); ElMessage.success('OpenVPN 已启动'); await fetchOpenvpnData() }
+  catch (e) { ElMessage.error(e.response?.data?.detail || '启动失败') }
+}
+async function openvpnStop() {
+  try { await api.post('/vpn/openvpn/stop'); ElMessage.success('OpenVPN 已停止'); await fetchOpenvpnData() }
+  catch (e) { ElMessage.error(e.response?.data?.detail || '停止失败') }
+}
+async function openvpnInitPki() {
+  openvpnPkiLoading.value = true
+  try { const res = await api.post('/vpn/openvpn/init-pki'); ElMessage.success(res.data.message || 'PKI 初始化完成') }
+  catch (e) { ElMessage.error(e.response?.data?.detail || 'PKI 初始化失败') }
+  openvpnPkiLoading.value = false; await fetchOpenvpnData()
+}
+async function openvpnSaveConfig() {
+  try { await api.put('/vpn/openvpn/config', openvpnForm); ElMessage.success('配置已保存') }
+  catch (e) { ElMessage.error(e.response?.data?.detail || '保存失败') }
+}
+async function addOpenvpnClient() {
+  try {
+    const res = await api.post('/vpn/openvpn/clients', { name: newOvpnClient.name })
+    ElMessage.success(res.data.message); showAddOvpnClient.value = false; newOvpnClient.name = ''; await fetchOpenvpnData()
+  } catch (e) { ElMessage.error(e.response?.data?.detail || '添加失败') }
+}
+async function revokeOpenvpnClient(row) {
+  try {
+    await ElMessageBox.confirm(`确定撤销客户端 \"${row.name}\" 的证书？`, '确认')
+    const res = await api.delete(`/vpn/openvpn/clients/${encodeURIComponent(row.name)}`)
+    ElMessage.success(res.data.message); await fetchOpenvpnData()
+  } catch { /* cancelled */ }
+}
+async function openvpnExportConfig(name) {
+  try {
+    const res = await api.get(`/vpn/openvpn/export-config/${encodeURIComponent(name)}`, { responseType: 'blob' })
+    const blob = new Blob([res.data], { type: 'application/octet-stream' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = `${name}.ovpn`; a.click()
+    URL.revokeObjectURL(url)
+  } catch (e) { ElMessage.error('导出失败') }
 }
 
 function formatBytes(bytes) {
