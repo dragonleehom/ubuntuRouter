@@ -1,4 +1,8 @@
-"""容器管理 API — 容器 CRUD + Compose 项目管理"""
+"""容器管理 API — 容器 CRUD + Compose 项目管理 + 网络/卷管理"""
+
+import json
+import os
+import subprocess
 
 from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import List, Optional
@@ -14,6 +18,343 @@ class ExecRequest(BaseModel):
     """容器内执行命令请求"""
     cmd: str
     shell: str = "/bin/sh"
+
+
+# ──────────────────────────────────────────────
+# Docker 网络管理
+# ──────────────────────────────────────────────
+
+class NetworkCreateRequest(BaseModel):
+    """创建 Docker 网络请求"""
+    name: str
+    driver: str = "bridge"
+    subnet: Optional[str] = None
+    gateway: Optional[str] = None
+    ip_range: Optional[str] = None
+    internal: bool = False
+    labels: Optional[dict] = {}
+
+
+@router.get("/networks")
+async def list_networks(auth=Depends(require_auth)):
+    """获取 Docker 网络列表"""
+    try:
+        result = subprocess.run(
+            ["docker", "network", "ls", "--format", '{{json .}}'],
+            capture_output=True, text=True, timeout=15
+        )
+        if result.returncode != 0:
+            raise HTTPException(status_code=500, detail=f"Docker 命令失败: {result.stderr.strip()}")
+
+        lines = [l.strip() for l in result.stdout.strip().split("\n") if l.strip()]
+        networks = []
+        for line in lines:
+            try:
+                net = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            name = net.get("Name", "")
+            net_id = net.get("ID", "")
+            driver = net.get("Driver", "")
+            scope = net.get("Scope", "")
+
+            # 获取网络详情 (inspect) 来获取子网、网关、容器数等
+            networks.append({
+                "name": name,
+                "id": net_id,
+                "driver": driver,
+                "scope": scope,
+                "attachable": False,
+                "internal": False,
+                "ipam": {"driver": "default", "subnet": "", "gateway": ""},
+                "containers": 0,
+                "created": "",
+            })
+
+        # 并行 inspect 获取详细信息
+        for n in networks:
+            try:
+                insp = subprocess.run(
+                    ["docker", "network", "inspect", n["name"]],
+                    capture_output=True, text=True, timeout=10
+                )
+                if insp.returncode == 0:
+                    data = json.loads(insp.stdout)
+                    if data:
+                        obj = data[0]
+                        n["attachable"] = obj.get("Attachable", False)
+                        n["internal"] = obj.get("Internal", False)
+
+                        ipam_conf = obj.get("IPAM", {})
+                        ipam_driver = ipam_conf.get("Driver", "default")
+                        subnet = ""
+                        gateway = ""
+                        configs = ipam_conf.get("Config", [])
+                        if configs:
+                            subnet = configs[0].get("Subnet", "")
+                            gateway = configs[0].get("Gateway", "")
+                        n["ipam"] = {
+                            "driver": ipam_driver,
+                            "subnet": subnet,
+                            "gateway": gateway,
+                        }
+
+                        containers = obj.get("Containers", {})
+                        n["containers"] = len(containers)
+                        n["created"] = obj.get("Created", "")
+            except Exception:
+                pass
+
+        return {"networks": networks, "total": len(networks)}
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=500, detail="Docker 命令超时")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/networks")
+async def create_network(req: NetworkCreateRequest, auth=Depends(require_auth)):
+    """创建 Docker 网络"""
+    try:
+        cmd = ["docker", "network", "create", "--driver", req.driver]
+
+        if req.subnet:
+            cmd.extend(["--subnet", req.subnet])
+        if req.gateway:
+            cmd.extend(["--gateway", req.gateway])
+        if req.ip_range:
+            cmd.extend(["--ip-range", req.ip_range])
+        if req.internal:
+            cmd.append("--internal")
+
+        # 添加 labels
+        if req.labels:
+            for k, v in req.labels.items():
+                cmd.extend(["--label", f"{k}={v}"])
+
+        cmd.append(req.name)
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail=f"创建网络失败: {result.stderr.strip()}")
+        return {"message": f"网络 '{req.name}' 创建成功", "network_id": result.stdout.strip()}
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=500, detail="Docker 命令超时")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/networks/{name}")
+async def remove_network(name: str, auth=Depends(require_auth)):
+    """删除 Docker 网络"""
+    try:
+        result = subprocess.run(
+            ["docker", "network", "rm", name],
+            capture_output=True, text=True, timeout=15
+        )
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail=f"删除网络失败: {result.stderr.strip()}")
+        return {"message": f"网络 '{name}' 已删除"}
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=500, detail="Docker 命令超时")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/networks/{name}/prune")
+async def prune_networks(name: str = None, auth=Depends(require_auth)):
+    """清理未使用的 Docker 网络"""
+    try:
+        cmd = ["docker", "network", "prune", "-f"]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode != 0:
+            raise HTTPException(status_code=500, detail=f"清理网络失败: {result.stderr.strip()}")
+        return {"message": "未使用的网络已清理", "output": result.stdout.strip()}
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=500, detail="Docker 命令超时")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ──────────────────────────────────────────────
+# Docker 卷管理
+# ──────────────────────────────────────────────
+
+class VolumeCreateRequest(BaseModel):
+    """创建 Docker 卷请求"""
+    name: str
+    driver: str = "local"
+    labels: Optional[dict] = {}
+
+
+@router.get("/volumes")
+async def list_volumes(auth=Depends(require_auth)):
+    """获取 Docker 卷列表"""
+    try:
+        result = subprocess.run(
+            ["docker", "volume", "ls", "--format", '{{json .}}'],
+            capture_output=True, text=True, timeout=15
+        )
+        if result.returncode != 0:
+            raise HTTPException(status_code=500, detail=f"Docker 命令失败: {result.stderr.strip()}")
+
+        lines = [l.strip() for l in result.stdout.strip().split("\n") if l.strip()]
+        volumes = []
+        for line in lines:
+            try:
+                vol = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            name = vol.get("Name", "")
+            driver = vol.get("Driver", "")
+
+            # 获取卷详情（挂载点、创建时间、labels）
+            mountpoint = ""
+            created = ""
+            labels = {}
+            try:
+                insp = subprocess.run(
+                    ["docker", "volume", "inspect", name],
+                    capture_output=True, text=True, timeout=10
+                )
+                if insp.returncode == 0:
+                    data = json.loads(insp.stdout)
+                    if data:
+                        obj = data[0]
+                        mountpoint = obj.get("Mountpoint", "")
+                        created = obj.get("CreatedAt", "")
+                        labels = obj.get("Labels", {}) or {}
+            except Exception:
+                pass
+
+            # 获取卷大小
+            size_str = ""
+            if mountpoint and os.path.isdir(mountpoint):
+                try:
+                    du = subprocess.run(
+                        ["du", "-sh", mountpoint],
+                        capture_output=True, text=True, timeout=10
+                    )
+                    if du.returncode == 0:
+                        size_str = du.stdout.strip().split("\t")[0]
+                except Exception:
+                    pass
+
+            volumes.append({
+                "name": name,
+                "driver": driver,
+                "mountpoint": mountpoint,
+                "size": size_str,
+                "created": created,
+                "labels": labels,
+            })
+
+        return {"volumes": volumes, "total": len(volumes)}
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=500, detail="Docker 命令超时")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/volumes")
+async def create_volume(req: VolumeCreateRequest, auth=Depends(require_auth)):
+    """创建 Docker 卷"""
+    try:
+        cmd = ["docker", "volume", "create", "--driver", req.driver]
+
+        if req.labels:
+            for k, v in req.labels.items():
+                cmd.extend(["--label", f"{k}={v}"])
+
+        cmd.append(req.name)
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail=f"创建卷失败: {result.stderr.strip()}")
+        return {"message": f"卷 '{req.name}' 创建成功", "volume_name": result.stdout.strip()}
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=500, detail="Docker 命令超时")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/volumes/{name}")
+async def remove_volume(name: str, force: bool = False, auth=Depends(require_auth)):
+    """删除 Docker 卷"""
+    try:
+        cmd = ["docker", "volume", "rm"]
+        if force:
+            cmd.append("-f")
+        cmd.append(name)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail=f"删除卷失败: {result.stderr.strip()}")
+        return {"message": f"卷 '{name}' 已删除"}
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=500, detail="Docker 命令超时")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/volumes/{name}/inspect")
+async def inspect_volume(name: str, auth=Depends(require_auth)):
+    """查看 Docker 卷详情"""
+    try:
+        result = subprocess.run(
+            ["docker", "volume", "inspect", name],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode != 0:
+            raise HTTPException(status_code=404, detail=f"卷 '{name}' 未找到: {result.stderr.strip()}")
+
+        data = json.loads(result.stdout)
+        if not data:
+            raise HTTPException(status_code=404, detail=f"卷 '{name}' 未找到")
+
+        obj = data[0]
+        mountpoint = obj.get("Mountpoint", "")
+
+        # 获取大小
+        size_str = ""
+        if mountpoint and os.path.isdir(mountpoint):
+            try:
+                du = subprocess.run(
+                    ["du", "-sh", mountpoint],
+                    capture_output=True, text=True, timeout=10
+                )
+                if du.returncode == 0:
+                    size_str = du.stdout.strip().split("\t")[0]
+            except Exception:
+                pass
+
+        return {
+            "volume": {
+                "name": obj.get("Name", ""),
+                "driver": obj.get("Driver", ""),
+                "mountpoint": mountpoint,
+                "size": size_str,
+                "created": obj.get("CreatedAt", ""),
+                "labels": obj.get("Labels", {}) or {},
+                "scope": obj.get("Scope", "local"),
+                "options": obj.get("Options", {}) or {},
+            }
+        }
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=500, detail="Docker 命令超时")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

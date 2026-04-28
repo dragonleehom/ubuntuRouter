@@ -134,6 +134,16 @@
         </el-table>
       </el-tab-pane>
 
+      <!-- ═══════════ Docker 网络管理 ═══════════ -->
+      <el-tab-pane label="网络管理" name="networks">
+        <DockerNetworks />
+      </el-tab-pane>
+
+      <!-- ═══════════ Docker 卷管理 ═══════════ -->
+      <el-tab-pane label="卷管理" name="volumes">
+        <DockerVolumes />
+      </el-tab-pane>
+
       <!-- ═══════════ Compose 项目 ═══════════ -->
       <el-tab-pane label="Compose 项目" name="compose">
         <div class="toolbar">
@@ -330,6 +340,8 @@ import { ref, onMounted, computed } from 'vue'
 import { api } from '@/stores'
 import { Refresh, Plus, Link, Loading } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import DockerNetworks from './DockerNetworks.vue'
+import DockerVolumes from './DockerVolumes.vue'
 
 const loading = ref(false)
 const imgLoading = ref(false)
