@@ -5,8 +5,8 @@ Sprint 1 增强: ICMP/ipset/rate limit/时间限制/conntrack state/MAC/NAT回�
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
-from src.ubunturouter.api.deps import require_auth
-from src.ubunturouter.firewall import (
+from ..deps import require_auth
+from ...firewall import (
     FirewallManager, NftablesStats, ICMP_TYPES, ICMPV6_TYPES, NftablesRuleBuilder
 )
 
