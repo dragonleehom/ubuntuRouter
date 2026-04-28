@@ -42,7 +42,7 @@
       </div>
     </div>
 
-    <!-- 统计信息 + 分页 -->
+    <!-- 统计信息 + 排序 -->
     <div class="stats-bar">
       <span class="stats-text">共 {{ totalApps }} 个应用</span>
       <span class="stats-divider">|</span>
@@ -50,14 +50,22 @@
       <span v-if="totalApps > 60" class="pagination-hint">
         分页显示，可使用标签筛选缩小范围
       </span>
+      <div style="margin-left: auto;">
+        <el-select v-model="sortBy" style="width: 160px; float: right; margin-bottom: 10px;" size="small">
+          <el-option label="默认排序" value="default" />
+          <el-option label="最近更新" value="version" />
+          <el-option label="热门下载" value="downloads" />
+          <el-option label="评分最高" value="rating" />
+        </el-select>
+      </div>
     </div>
 
     <!-- Tab: 应用市场 / 已安装 -->
     <el-tabs v-model="activeTab">
       <el-tab-pane label="应用市场" name="market">
-        <el-row v-if="apps.length > 0" :gutter="12">
+        <el-row v-if="sortedApps.length > 0" :gutter="12">
           <el-col
-            v-for="app in apps"
+            v-for="app in sortedApps"
             :key="app.id"
             :xs="12"
             :sm="8"
@@ -84,7 +92,7 @@
             </el-card>
           </el-col>
         </el-row>
-        <el-empty v-if="!loading && apps.length === 0" description="暂无应用" />
+        <el-empty v-if="!loading && sortedApps.length === 0" description="暂无应用" />
 
         <!-- 分页 -->
         <div v-if="totalApps > pageSize" class="pagination-row">
@@ -365,6 +373,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 
 const loading = ref(false)
 const apps = ref([])
+const sortBy = ref('default')
 const totalApps = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(60)
@@ -421,6 +430,40 @@ const showAddRepo = ref(false)
 const newRepo = ref({ name: '', url: '' })
 const addingRepo = ref(false)
 const syncing = ref(false)
+
+// ─── 排序 ──────────────────────────────────────
+const sortedApps = computed(() => {
+  const list = [...apps.value]
+  switch (sortBy.value) {
+    case 'version':
+      return list.sort((a, b) => {
+        // If neither has version, preserve order
+        if (!a.version && !b.version) return 0
+        if (!a.version) return 1
+        if (!b.version) return -1
+        return String(b.version).localeCompare(String(a.version), undefined, { numeric: true })
+      })
+    case 'downloads':
+      return list.sort((a, b) => {
+        const da = typeof a.downloadCount === 'number' ? a.downloadCount : -1
+        const db = typeof b.downloadCount === 'number' ? b.downloadCount : -1
+        return db - da
+      })
+    case 'rating':
+      return list.sort((a, b) => {
+        const ra = typeof a.rating === 'number' ? a.rating : -1
+        const rb = typeof b.rating === 'number' ? b.rating : -1
+        return rb - ra
+      })
+    default:
+      // default: alphabetical order by name (current behavior)
+      return list.sort((a, b) => {
+        const na = (a.name || '').toLowerCase()
+        const nb = (b.name || '').toLowerCase()
+        return na.localeCompare(nb)
+      })
+  }
+})
 
 // ─── 标签筛选（全部展开，支持多选切换） ──────
 
@@ -734,6 +777,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 .stats-divider { color: #333; }
 .pagination-hint { color: #666; font-size: 12px; }
