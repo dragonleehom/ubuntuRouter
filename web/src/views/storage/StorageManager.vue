@@ -73,7 +73,7 @@
     </el-tabs>
 
     <!-- 磁盘详情对话框 -->
-    <el-dialog v-model="detailDialog.visible" :title="`/dev/${detailDialog.disk?.name} 详情`" width="700px">
+    <el-dialog v-model="detailDialog.visible" :title="`/dev/${detailDialog.disk?.name} 详情`" width="850px">
       <template v-if="detailDialog.disk">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="设备">{{ detailDialog.disk.name }}</el-descriptions-item>
@@ -90,7 +90,7 @@
           <el-descriptions-item label="厂商" v-if="detailDialog.disk.vendor">{{ detailDialog.disk.vendor }}</el-descriptions-item>
         </el-descriptions>
 
-        <!-- SMART 信息 -->
+        <!-- S.M.A.R.T 状态 -->
         <h4 style="margin: 20px 0 10px">S.M.A.R.T 状态</h4>
         <div v-if="smartInfo.error" class="smart-error">{{ smartInfo.error }}</div>
         <el-descriptions v-else :column="2" border size="small">
@@ -105,13 +105,106 @@
           <el-descriptions-item label="待处理扇区">{{ smartInfo.pending_sectors || '-' }}</el-descriptions-item>
           <el-descriptions-item label="离线无法修正">{{ smartInfo.offline_uncorrectable || '-' }}</el-descriptions-item>
         </el-descriptions>
+
+        <!-- APM / 休眠管理 -->
+        <h4 style="margin: 20px 0 10px">
+          APM / 硬盘休眠管理
+          <el-button size="small" @click="fetchApmStatus" :loading="apmLoading" style="margin-left: 12px">
+            <el-icon><Refresh /></el-icon> 刷新
+          </el-button>
+        </h4>
+
+        <!-- APM 加载中 -->
+        <div v-if="apmLoading && !apmData.device" style="padding: 20px; text-align: center; color: #888">加载 APM 信息中...</div>
+
+        <!-- APM 错误 -->
+        <div v-else-if="apmError" class="smart-error">{{ apmError }}</div>
+
+        <!-- APM 数据展示 -->
+        <template v-else-if="apmData.device">
+          <el-descriptions :column="3" border size="small">
+            <el-descriptions-item label="硬盘状态" :span="1">
+              <el-tag :type="statusTagType" size="small">
+                {{ statusLabel }}
+              </el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="APM 级别" :span="1">
+              <template v-if="apmData.apm_enabled">
+                {{ apmData.apm_level ?? '-' }}
+                <span style="color: #888; font-size: 12px; margin-left: 4px">({{ apmData.apm_level_name || '未知' }})</span>
+              </template>
+              <span v-else style="color: #888">未启用</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="休眠超时" :span="1">
+              {{ apmData.spindown_timeout_name || '永不超时' }}
+            </el-descriptions-item>
+          </el-descriptions>
+
+          <!-- 修改按钮 -->
+          <div style="margin-top: 12px; text-align: right">
+            <el-button type="primary" size="small" @click="showApmForm = !showApmForm">
+              {{ showApmForm ? '取消' : '修改设置' }}
+            </el-button>
+          </div>
+
+          <!-- APM 设置表单 -->
+          <el-form v-if="showApmForm" ref="apmFormRef" :model="apmForm" style="margin-top: 12px" label-width="140px">
+            <el-form-item label="APM 级别 (1-255)">
+              <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap">
+                <el-slider
+                  v-model="apmForm.apm_level"
+                  :min="1"
+                  :max="255"
+                  :step="1"
+                  show-input
+                  style="width: 240px"
+                />
+                <span style="color: #888; font-size: 12px; margin-left: 4px">
+                  {{ apmForm.apm_level_name }}
+                </span>
+              </div>
+              <div style="margin-top: 4px; font-size: 12px; color: #666">
+                1-127 = 性能优先 | 128-254 = 允许降速 | 255 = 禁用 APM
+              </div>
+            </el-form-item>
+
+            <el-form-item label="休眠超时">
+              <div style="display: flex; gap: 8px; align-items: center">
+                <el-select v-model="apmForm.spindown_timeout" placeholder="选择超时时间" style="width: 240px">
+                  <el-option label="永不超时（禁用）" :value="0" />
+                  <el-option label="5 秒" :value="1" />
+                  <el-option label="10 秒" :value="2" />
+                  <el-option label="30 秒" :value="6" />
+                  <el-option label="1 分钟" :value="12" />
+                  <el-option label="2 分钟" :value="24" />
+                  <el-option label="3 分钟" :value="36" />
+                  <el-option label="5 分钟" :value="60" />
+                  <el-option label="10 分钟" :value="120" />
+                  <el-option label="15 分钟" :value="180" />
+                  <el-option label="20 分钟" :value="240" />
+                </el-select>
+                <span style="color: #888; font-size: 12px">{{ apmForm.spindown_timeout_label }}</span>
+              </div>
+            </el-form-item>
+
+            <el-form-item>
+              <el-button type="primary" @click="saveApmSettings" :loading="apmSaving">保存设置</el-button>
+              <el-button @click="showApmForm = false">取消</el-button>
+            </el-form-item>
+          </el-form>
+        </template>
+
+        <!-- 未检测到 APM -->
+        <div v-else style="padding: 12px; color: #888; text-align: center; border: 1px dashed #444; border-radius: 4px;">
+          无法获取 APM 信息（hdparm 可能未安装或不支持）
+        </div>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { api } from '@/stores'
 import { Refresh, Monitor } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -122,6 +215,74 @@ const disks = ref([])
 const mounts = ref([])
 const smartInfo = ref({})
 const detailDialog = ref({ visible: false, disk: null })
+
+// APM state
+const apmLoading = ref(false)
+const apmSaving = ref(false)
+const apmError = ref('')
+const apmData = ref({})
+const showApmForm = ref(false)
+const apmForm = ref({
+  apm_level: 128,
+  spindown_timeout: 0,
+  spindown_timeout_label: '',
+  apm_level_name: '',
+})
+
+// APM level name lookup
+const APM_LEVEL_NAMES = {
+  '1-63': '高性能（极低延迟）',
+  '64-127': '性能优先',
+  '128-254': '中间值（允许旋转降速）',
+  '255-255': '禁用 APM',
+}
+
+// Spindown timeout options with labels
+function getSpindownLabel(value) {
+  if (value === 0) return '永不超时'
+  if (value <= 11) return `${value * 5} 秒`
+  if (value <= 240) return `${value * 5} 秒 (约 ${Math.round(value * 5 / 60)} 分钟)`
+  if (value <= 251) return `${(value - 240) * 30} 分钟`
+  if (value === 252) return '21 分钟'
+  if (value === 253) return '~8 小时'
+  if (value === 254) return '预留'
+  if (value === 255) return '21 分钟 + 15 分钟'
+  return `${value}`
+}
+
+function getApmLevelName(level) {
+  if (!level) return '未知'
+  if (level >= 1 && level <= 63) return '高性能（极低延迟）'
+  if (level >= 64 && level <= 127) return '性能优先'
+  if (level >= 128 && level <= 254) return '中间值（允许旋转降速）'
+  if (level === 255) return '禁用 APM'
+  return '未知'
+}
+
+// Watch APM level changes to update the name
+watch(() => apmForm.value.apm_level, (val) => {
+  apmForm.value.apm_level_name = getApmLevelName(val)
+})
+
+// Status display
+const statusLabel = computed(() => {
+  const s = apmData.value.status
+  if (!s || s === 'unknown') return '未知'
+  if (s === 'active') return '工作中'
+  if (s === 'idle') return '空闲'
+  if (s === 'standby') return '待机/休眠'
+  if (s === 'sleep') return '睡眠'
+  return s
+})
+
+const statusTagType = computed(() => {
+  const s = apmData.value.status
+  if (!s || s === 'unknown') return 'info'
+  if (s === 'active') return 'success'
+  if (s === 'idle') return 'warning'
+  if (s === 'standby' || s === 'sleep') return 'danger'
+  return 'info'
+})
 
 function formatBytes(bytes) {
   if (!bytes || bytes === 0) return '0 B'
@@ -145,6 +306,12 @@ async function fetchOverview() {
 async function showDiskDetail(disk) {
   detailDialog.value = { visible: true, disk }
   smartInfo.value = {}
+  // Reset APM state
+  apmData.value = {}
+  apmError.value = ''
+  showApmForm.value = false
+
+  // Fetch SMART info
   try {
     const res = await api.get(`/storage/disks/${disk.name}`)
     if (res.data.smart_info) {
@@ -156,6 +323,58 @@ async function showDiskDetail(disk) {
   } catch (e) {
     smartInfo.value = { error: '获取 SMART 信息失败' }
   }
+
+  // Fetch APM status
+  await fetchApmStatus()
+}
+
+async function fetchApmStatus() {
+  if (!detailDialog.value.disk) return
+  apmLoading.value = true
+  apmError.value = ''
+  try {
+    const res = await api.get(`/storage/disks/${detailDialog.value.disk.name}/apm`)
+    apmData.value = res.data
+    // Pre-fill form with current values
+    apmForm.value.apm_level = res.data.apm_level || 128
+    apmForm.value.apm_level_name = getApmLevelName(res.data.apm_level)
+    apmForm.value.spindown_timeout = res.data.spindown_timeout || 0
+    apmForm.value.spindown_timeout_label = getSpindownLabel(res.data.spindown_timeout)
+  } catch (e) {
+    if (e.response?.status === 400 && e.response?.data?.detail?.includes('hdparm')) {
+      apmError.value = 'hdparm 未安装，请先安装: sudo apt install hdparm'
+    } else if (e.response?.status === 404) {
+      apmError.value = '设备不存在'
+    } else {
+      apmError.value = '获取 APM 信息失败: ' + (e.response?.data?.detail || e.message)
+    }
+  }
+  apmLoading.value = false
+}
+
+async function saveApmSettings() {
+  apmSaving.value = true
+  try {
+    const payload = {}
+    const devName = detailDialog.value.disk?.name
+
+    if (apmForm.value.apm_level !== undefined && apmForm.value.apm_level !== null) {
+      payload.apm_level = apmForm.value.apm_level
+    }
+
+    if (apmForm.value.spindown_timeout !== undefined && apmForm.value.spindown_timeout !== null) {
+      payload.spindown_timeout = apmForm.value.spindown_timeout
+    }
+
+    const res = await api.post(`/storage/disks/${devName}/apm`, payload)
+    ElMessage.success('APM/休眠设置已更新')
+    showApmForm.value = false
+    // Refresh APM status
+    await fetchApmStatus()
+  } catch (e) {
+    ElMessage.error('保存失败: ' + (e.response?.data?.detail || e.message))
+  }
+  apmSaving.value = false
 }
 
 onMounted(() => fetchOverview())
