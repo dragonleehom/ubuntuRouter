@@ -65,7 +65,6 @@
           <el-menu-item index="/network/turbo-acc">{{ t('Turbo ACC') }}</el-menu-item>
           <el-menu-item index="/network/diagnostics">{{ t('网络诊断') }}</el-menu-item>
           <el-menu-item index="/network/upnp">{{ t('UPnP') }}</el-menu-item>
-          <el-menu-item index="/orchestrator/canvas">{{ t('流量编排') }}</el-menu-item>
         </el-sub-menu>
 
         <!-- 4. 远程服务 -->
@@ -152,6 +151,12 @@
           <el-menu-item index="/power/reboot">{{ t('重启') }}</el-menu-item>
           <el-menu-item index="/power/shutdown">{{ t('关机') }}</el-menu-item>
         </el-sub-menu>
+
+        <!-- 9. 流量编排 -->
+        <el-menu-item index="/orchestrator/canvas">
+          <el-icon><Connection /></el-icon>
+          <span>{{ t('流量编排') }}</span>
+        </el-menu-item>
       </el-menu>
 
       <!-- PC端折叠按钮 -->
