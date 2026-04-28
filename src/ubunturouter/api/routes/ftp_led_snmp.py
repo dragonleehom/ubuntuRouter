@@ -73,6 +73,10 @@ async def ftp_status(auth=Depends(require_auth)):
 @router.post("/ftp/enable")
 async def ftp_enable(auth=Depends(require_auth)):
     """启用 FTP 服务"""
+    # 检查 vsftpd 是否安装
+    r_check = subprocess.run(["which", "vsftpd"], capture_output=True, text=True, timeout=5)
+    if r_check.returncode != 0:
+        raise HTTPException(status_code=400, detail="vsftpd 未安装，请先 apt install vsftpd")
     _write_vsftpd_conf({})
     subprocess.run(["systemctl", "enable", "vsftpd"],
                    capture_output=True, text=True, timeout=10)
