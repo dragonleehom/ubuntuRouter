@@ -608,6 +608,57 @@ async def get_container_app_open(container_id: str, auth=Depends(require_auth)):
     return {"url": None, "message": "未检测到HTTP端口"}
 
 
+# ──────────────────────────────────────────────
+# Docker 事件日志
+# ──────────────────────────────────────────────
+
+
+@router.get("/events")
+async def get_docker_events(
+    since: str = Query("1h", description="时间范围，如 1h, 5m, 24h, 7d"),
+    limit: int = Query(100, ge=1, le=1000, description="最大返回事件数"),
+    auth=Depends(require_auth),
+):
+    """获取 Docker 事件日志"""
+    try:
+        result = subprocess.run(
+            ["docker", "events", "--since", since, "--format", "{{json .}}"],
+            capture_output=True, text=True, timeout=10,
+        )
+
+        lines = [l.strip() for l in result.stdout.strip().split("\n") if l.strip()]
+        events = []
+        for line in lines:
+            try:
+                ev = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            events.append({
+                "type": ev.get("Type", ""),
+                "action": ev.get("Action", ""),
+                "id": ev.get("ID", ""),
+                "from": ev.get("from", ""),
+                "time": ev.get("time", 0),
+                "time_nano": ev.get("timeNano", 0),
+                "status": ev.get("status", ""),
+                "name": ev.get("Actor", {}).get("Attributes", {}).get("name", ""),
+            })
+
+        # 按 limit 截断（取最新的 limit 条）
+        if len(events) > limit:
+            events = events[-limit:]
+
+        return {"events": events, "total": len(events)}
+    except subprocess.TimeoutExpired:
+        # timeout 后返回已有数据（若有 stdout）
+        raise HTTPException(status_code=504, detail="Docker events 命令超时，请缩小时间范围")
+    except subprocess.CalledProcessError as e:
+        raise HTTPException(status_code=500, detail=f"Docker 命令失败: {e.stderr.strip()}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Compose 项目管理
 # ═══════════════════════════════════════════════════════════════════════════════
