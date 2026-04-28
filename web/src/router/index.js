@@ -7,6 +7,7 @@ import storageRoutes from './routes/storage.js'
 import appsRoutes from './routes/apps.js'
 import systemRoutes from './routes/system.js'
 import powerRoutes from './routes/power.js'
+import orchestratorRoutes from './routes/orchestrator.js'
 
 // 旧路径到新路径的重定向映射
 const redirectMap = {
@@ -62,6 +63,8 @@ const routes = [
       ...appsRoutes,
       ...systemRoutes,
       ...powerRoutes,
+      // 编排模块
+      ...orchestratorRoutes,
       // 旧路径重定向
       ...redirectRoutes,
     ],

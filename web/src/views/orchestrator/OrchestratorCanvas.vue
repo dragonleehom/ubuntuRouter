@@ -194,6 +194,138 @@
             </div>
           </template>
         </el-tab-pane>
+
+        <!-- Tab 5: 画板视图 (n8n 风格节点画布) -->
+        <el-tab-pane label="画板视图" name="canvas">
+          <div class="canvas-layout">
+            <!-- 左侧工具栏 -->
+            <div class="canvas-toolbox" @dragstart="onToolDragStart" @dragend="onToolDragEnd">
+              <div class="toolbox-title">节点类型</div>
+              <div
+                v-for="nt in nodeTypes"
+                :key="nt.type"
+                class="toolbox-item"
+                :class="{ 'dragging': draggingType === nt.type }"
+                :data-node-type="nt.type"
+                draggable="true"
+              >
+                <span class="toolbox-dot" :style="{ background: nt.color }"></span>
+                <span class="toolbox-label">{{ nt.label }}</span>
+              </div>
+            </div>
+
+            <!-- 中间画布区 -->
+            <div
+              class="canvas-area"
+              ref="canvasAreaRef"
+              @dragover.prevent="onCanvasDragOver"
+              @dragleave="onCanvasDragLeave"
+              @drop="onCanvasDrop"
+              @click.self="deselectNode"
+            >
+              <svg class="canvas-svg" :width="canvasWidth" :height="canvasHeight">
+                <path
+                  v-for="(edge, ei) in edges"
+                  :key="ei"
+                  :d="edge.path"
+                  fill="none"
+                  stroke="#555"
+                  stroke-width="2"
+                  stroke-dasharray="6,3"
+                  class="canvas-edge"
+                />
+              </svg>
+
+              <!-- 画布上的节点 -->
+              <div
+                v-for="node in nodes"
+                :key="node.id"
+                class="canvas-node"
+                :class="{ 'selected': selectedNode?.id === node.id }"
+                :data-node-id="node.id"
+                :style="{
+                  left: node.x + 'px',
+                  top: node.y + 'px',
+                  borderColor: node.color || '#409EFF'
+                }"
+                @mousedown.stop="onNodeMouseDown($event, node)"
+                @click.stop="selectNode(node)"
+              >
+                <div class="canvas-node-header" :style="{ background: node.color || '#409EFF' }">
+                  <span class="canvas-node-type">{{ node.nodeTypeLabel }}</span>
+                </div>
+                <div class="canvas-node-body">
+                  <div class="canvas-node-name">{{ node.name }}</div>
+                  <div class="canvas-node-meta" v-if="node.meta">{{ node.meta }}</div>
+                </div>
+                <!-- 连线锚点（输出） -->
+                <div
+                  class="canvas-anchor anchor-output"
+                  @mousedown.stop="onAnchorMouseDown($event, node, 'output')"
+                ></div>
+                <!-- 连线锚点（输入） -->
+                <div
+                  class="canvas-anchor anchor-input"
+                  @mousedown.stop="onAnchorMouseDown($event, node, 'input')"
+                ></div>
+              </div>
+
+              <!-- 正在拖拽的连线 -->
+              <svg class="canvas-svg" v-if="connectingLine" style="pointer-events:none">
+                <line
+                  :x1="connectingLine.x1" :y1="connectingLine.y1"
+                  :x2="connectingLine.x2" :y2="connectingLine.y2"
+                  stroke="#409EFF" stroke-width="2" stroke-dasharray="5,3"
+                />
+              </svg>
+
+              <div v-if="nodes.length === 0" class="canvas-empty">
+                <el-icon :size="48" color="#555"><Connection /></el-icon>
+                <p>从左侧拖入节点，或从锚点连线建立关系</p>
+                <p style="font-size:12px;color:#555">加载数据后将自动布局</p>
+              </div>
+            </div>
+
+            <!-- 右侧配置面板 -->
+            <div class="canvas-config" v-if="selectedNode">
+              <div class="config-title">节点配置</div>
+              <el-form size="small" label-position="top">
+                <el-form-item label="名称">
+                  <el-input v-model="selectedNode.name" @blur="updateNode(selectedNode)" />
+                </el-form-item>
+                <el-form-item label="类型">
+                  <el-tag :color="selectedNode.color" effect="dark" style="color:#fff">
+                    {{ selectedNode.nodeTypeLabel }}
+                  </el-tag>
+                </el-form-item>
+                <el-form-item label="ID">
+                  <span class="config-id">{{ selectedNode.id }}</span>
+                </el-form-item>
+                <el-form-item label="位置">
+                  <span class="config-pos">X: {{ selectedNode.x }}, Y: {{ selectedNode.y }}</span>
+                </el-form-item>
+                <el-form-item v-if="selectedNode.ip">
+                  <template #label><span style="color:#ccc">IP</span></template>
+                  <span style="color:#999">{{ selectedNode.ip }}</span>
+                </el-form-item>
+                <el-form-item v-if="selectedNode.mac">
+                  <template #label><span style="color:#ccc">MAC</span></template>
+                  <span style="color:#999">{{ selectedNode.mac }}</span>
+                </el-form-item>
+                <el-divider style="border-color:#333;margin:12px 0" />
+                <el-form-item>
+                  <el-button type="danger" size="small" plain @click="removeNode(selectedNode)" style="width:100%">
+                    删除节点
+                  </el-button>
+                </el-form-item>
+              </el-form>
+            </div>
+            <div class="canvas-config canvas-config-empty" v-else>
+              <el-icon :size="32" color="#444"><InfoFilled /></el-icon>
+              <p style="color:#555;font-size:13px">选择节点查看配置</p>
+            </div>
+          </div>
+        </el-tab-pane>
       </el-tabs>
     </el-card>
 
@@ -281,7 +413,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh, Plus, Search, SetUp } from '@element-plus/icons-vue'
+import { Refresh, Plus, Search, SetUp, Connection, InfoFilled } from '@element-plus/icons-vue'
 import { api } from '@/stores'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
@@ -599,15 +731,340 @@ async function applyTemplate(tpl) {
 }
 
 async function refreshAll() {
-  await Promise.all([fetchDevices(), fetchRules(), fetchStats(), fetchTemplates()])
+  await Promise.all([fetchDevices(), fetchRules(), fetchStats(), fetchTemplates(), fetchCanvasData()])
+}
+
+// ── Tab 5: 画板视图 ───────────────────────────────────────
+const nodeTypes = [
+  { type: 'device', label: '设备', color: '#409EFF' },
+  { type: 'app', label: '应用', color: '#67C23A' },
+  { type: 'rule', label: '规则', color: '#E6A23C' },
+  { type: 'interface', label: '接口', color: '#F56C6C' },
+]
+
+const nodes = ref([])
+const edges = ref([])
+const selectedNode = ref(null)
+const draggingType = ref(null)
+const connectingLine = ref(null)
+const nodeIdCounter = ref(0)
+
+// 画布尺寸
+const canvasWidth = ref(1800)
+const canvasHeight = ref(1200)
+
+const canvasAreaRef = ref(null)
+
+// 节点拖入画布
+function onToolDragStart(e) {
+  const type = e.target.closest('[data-node-type]')?.dataset?.nodeType
+  if (type) {
+    draggingType.value = type
+    e.dataTransfer.setData('text/plain', type)
+    e.dataTransfer.effectAllowed = 'copy'
+  }
+}
+
+function onToolDragEnd() {
+  draggingType.value = null
+}
+
+let dragOverCount = 0
+
+function onCanvasDragOver(e) {
+  dragOverCount++
+  e.dataTransfer.dropEffect = 'copy'
+}
+
+function onCanvasDragLeave() {
+  dragOverCount--
+}
+
+function onCanvasDrop(e) {
+  dragOverCount = 0
+  const type = e.dataTransfer.getData('text/plain') || draggingType.value
+  if (!type) return
+
+  const rect = canvasAreaRef.value?.getBoundingClientRect()
+  if (!rect) return
+
+  const nt = nodeTypes.find(t => t.type === type)
+  nodeIdCounter.value++
+  const newNode = {
+    id: `node_${nodeIdCounter.value}_${Date.now()}`,
+    nodeType: type,
+    nodeTypeLabel: nt?.label || type,
+    color: nt?.color || '#409EFF',
+    name: `${nt?.label || type} ${nodeIdCounter.value}`,
+    meta: '',
+    ip: '',
+    mac: '',
+    x: e.clientX - rect.left - 80,
+    y: e.clientY - rect.top - 30,
+  }
+  nodes.value.push(newNode)
+  selectNode(newNode)
+}
+
+// 锚点连线
+function onAnchorMouseDown(e, node, direction) {
+  const rect = canvasAreaRef.value?.getBoundingClientRect()
+  if (!rect) return
+  const anchorEl = e.target
+  const anchorRect = anchorEl.getBoundingClientRect()
+  connectingLine.value = {
+    sourceNode: node,
+    sourceDirection: direction,
+    x1: anchorRect.left - rect.left + anchorRect.width / 2,
+    y1: anchorRect.top - rect.top + anchorRect.height / 2,
+    x2: e.clientX - rect.left,
+    y2: e.clientY - rect.top,
+  }
+
+  const onMove = (ev) => {
+    if (!connectingLine.value) return
+    const cr = canvasAreaRef.value?.getBoundingClientRect()
+    if (!cr) return
+    connectingLine.value.x2 = ev.clientX - cr.left
+    connectingLine.value.y2 = ev.clientY - cr.top
+  }
+
+  const onUp = (ev) => {
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onUp)
+    if (!connectingLine.value) return
+
+    // 找到目标节点（释放位置的节点）
+    const dropTarget = nodes.value.find(n => {
+      const el = findNodeElement(n.id)
+      if (!el) return false
+      const r = el.getBoundingClientRect()
+      return ev.clientX >= r.left && ev.clientX <= r.right &&
+             ev.clientY >= r.top && ev.clientY <= r.bottom
+    })
+
+    if (dropTarget && dropTarget.id !== connectingLine.value.sourceNode.id) {
+      // 添加连线
+      const src = connectingLine.value.sourceNode
+      const dst = dropTarget
+      edges.value.push({
+        source: src.id,
+        target: dst.id,
+        path: computeEdgePath(src, dst),
+      })
+      recomputeEdges()
+    }
+    connectingLine.value = null
+  }
+
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', onUp)
+}
+
+function findNodeElement(nodeId) {
+  if (!canvasAreaRef.value) return null
+  return canvasAreaRef.value.querySelector(`.canvas-node[data-node-id="${nodeId}"]`)
+}
+
+// 节点拖拽移动
+let dragState = null
+
+function onNodeMouseDown(e, node) {
+  selectNode(node)
+  const rect = canvasAreaRef.value?.getBoundingClientRect()
+  if (!rect) return
+
+  dragState = {
+    node,
+    offsetX: e.clientX - node.x,
+    offsetY: e.clientY - node.y,
+  }
+
+  const onMove = (ev) => {
+    if (!dragState) return
+    const cr = canvasAreaRef.value?.getBoundingClientRect()
+    if (!cr) return
+    dragState.node.x = Math.max(0, ev.clientX - cr.left - dragState.offsetX)
+    dragState.node.y = Math.max(0, ev.clientY - cr.top - dragState.offsetY)
+    recomputeEdges()
+  }
+
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onUp)
+    dragState = null
+  }
+
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', onUp)
+}
+
+function selectNode(node) {
+  selectedNode.value = node
+}
+
+function deselectNode() {
+  selectedNode.value = null
+}
+
+function removeNode(node) {
+  nodes.value = nodes.value.filter(n => n.id !== node.id)
+  edges.value = edges.value.filter(e => e.source !== node.id && e.target !== node.id)
+  if (selectedNode.value?.id === node.id) {
+    selectedNode.value = null
+  }
+}
+
+function updateNode(node) {
+  // 只是触发响应式更新
+  nodes.value = [...nodes.value]
+}
+
+// ── 连线路径计算 ───────────────────────────────────────────
+function computeEdgePath(src, dst) {
+  const sx = src.x + 150
+  const sy = src.y + 60
+  const dx = dst.x
+  const dy = dst.y + 60
+  const cx1 = sx + Math.abs(dx - sx) * 0.4
+  const cy1 = sy
+  const cx2 = dx - Math.abs(dx - sx) * 0.4
+  const cy2 = dy
+  return `M ${sx} ${sy} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${dx} ${dy}`
+}
+
+function recomputeEdges() {
+  edges.value = edges.value.map(e => {
+    const src = nodes.value.find(n => n.id === e.source)
+    const dst = nodes.value.find(n => n.id === e.target)
+    if (src && dst) {
+      return { ...e, path: computeEdgePath(src, dst) }
+    }
+    return e
+  })
+}
+
+// ── 自动布局（树形，从上到下） ───────────────────────────
+function autoLayout(nodesList) {
+  if (nodesList.length === 0) return nodesList
+  const startX = 80
+  const startY = 60
+  const gapX = 220
+  const gapY = 160
+  const cols = 4
+  return nodesList.map((n, i) => ({
+    ...n,
+    x: startX + (i % cols) * gapX,
+    y: startY + Math.floor(i / cols) * gapY,
+  }))
+}
+
+// ── 从API加载数据到画布 ──────────────────────────────────
+async function fetchCanvasData() {
+  try {
+    const [devRes, appRes, ruleRes] = await Promise.all([
+      api.get('/orchestrator/devices'),
+      api.get('/orchestrator/apps'),
+      api.get('/orchestrator/rules'),
+    ])
+
+    const deviceNodes = (devRes.data.devices || devRes.data || []).map(d => ({
+      id: `canvas_dev_${d.mac || d.ip || d.name}_${Date.now()}`,
+      nodeType: 'device',
+      nodeTypeLabel: '设备',
+      color: '#409EFF',
+      name: d.name || d.hostname || d.ip || '未知设备',
+      meta: d.ip || '',
+      ip: d.ip || '',
+      mac: d.mac || '',
+      x: 0, y: 0,
+    }))
+
+    const appNodes = (appRes.data.apps || appRes.data || []).map(a => ({
+      id: `canvas_app_${a.name || a.app || Math.random()}_${Date.now()}`,
+      nodeType: 'app',
+      nodeTypeLabel: '应用',
+      color: '#67C23A',
+      name: a.name || a.app || '未知应用',
+      meta: a.protocol || '',
+      ip: '', mac: '',
+      x: 0, y: 0,
+    }))
+
+    const ruleNodes = (ruleRes.data.rules || ruleRes.data || []).map((r, idx) => ({
+      id: `canvas_rule_${r.id || idx}_${Date.now()}`,
+      nodeType: 'rule',
+      nodeTypeLabel: '规则',
+      color: '#E6A23C',
+      name: r.name || `规则 ${idx + 1}`,
+      meta: r.action || '',
+      ip: '', mac: '',
+      x: 0, y: 0,
+    }))
+
+    const allNodes = autoLayout([...deviceNodes, ...appNodes, ...ruleNodes])
+    nodes.value = allNodes
+
+    // 根据规则中的匹配关系，自动生成一些连线
+    const autoEdges = []
+    const ruleList = ruleRes.data.rules || ruleRes.data || []
+    ruleList.forEach((r, idx) => {
+      const ruleNode = allNodes.find(n => n.id === `canvas_rule_${r.id || idx}_${Date.now()}`)
+      if (!ruleNode) return
+
+      if (r.match_device) {
+        const devNode = allNodes.find(n => n.nodeType === 'device' && (n.name === r.match_device || n.meta === r.match_device))
+        if (devNode) {
+          autoEdges.push({
+            source: devNode.id,
+            target: ruleNode.id,
+            path: computeEdgePath(devNode, ruleNode),
+          })
+        }
+      }
+      if (r.match_app) {
+        const appNode = allNodes.find(n => n.nodeType === 'app' && (n.name === r.match_app))
+        if (appNode) {
+          autoEdges.push({
+            source: appNode.id,
+            target: ruleNode.id,
+            path: computeEdgePath(appNode, ruleNode),
+          })
+        }
+      }
+    })
+    edges.value = autoEdges
+  } catch (e) {
+    console.error('加载画板数据失败:', e)
+    // 使用示例数据
+    loadDemoData()
+  }
+}
+
+function loadDemoData() {
+  const demoNodes = autoLayout([
+    { id: 'demo_dev_1', nodeType: 'device', nodeTypeLabel: '设备', color: '#409EFF', name: '路由器', meta: '192.168.1.1', ip: '192.168.1.1', mac: '' },
+    { id: 'demo_dev_2', nodeType: 'device', nodeTypeLabel: '设备', color: '#409EFF', name: 'NAS', meta: '192.168.1.100', ip: '192.168.1.100', mac: '' },
+    { id: 'demo_app_1', nodeType: 'app', nodeTypeLabel: '应用', color: '#67C23A', name: 'Web服务', meta: 'tcp/80', ip: '', mac: '' },
+    { id: 'demo_app_2', nodeType: 'app', nodeTypeLabel: '应用', color: '#67C23A', name: '视频流', meta: 'udp/443', ip: '', mac: '' },
+    { id: 'demo_rule_1', nodeType: 'rule', nodeTypeLabel: '规则', color: '#E6A23C', name: '视频走WAN1', meta: 'WAN1', ip: '', mac: '' },
+    { id: 'demo_int_1', nodeType: 'interface', nodeTypeLabel: '接口', color: '#F56C6C', name: 'WAN1', meta: 'eth0', ip: '', mac: '' },
+  ])
+  nodes.value = demoNodes
+  edges.value = [
+    { source: 'demo_dev_1', target: 'demo_rule_1', path: computeEdgePath(demoNodes[0], demoNodes[4]) },
+    { source: 'demo_app_2', target: 'demo_rule_1', path: computeEdgePath(demoNodes[3], demoNodes[4]) },
+    { source: 'demo_rule_1', target: 'demo_int_1', path: computeEdgePath(demoNodes[4], demoNodes[5]) },
+  ]
 }
 
 // ── Tab 切换时按需加载 ───────────────────────────────────
-watch(activeTab, (tab) => {
+watch(activeTab, async (tab) => {
   if (tab === 'devices' && devices.value.length === 0 && !deviceLoading.value) fetchDevices()
   if (tab === 'rules' && rules.value.length === 0 && !ruleLoading.value) fetchRules()
   if (tab === 'stats' && deviceStatsData.value.length === 0 && !statsLoading.value) fetchStats()
   if (tab === 'templates' && templates.value.length === 0 && !templateLoading.value) fetchTemplates()
+  if (tab === 'canvas' && nodes.value.length === 0) await fetchCanvasData()
 })
 
 // ── 生命周期 ─────────────────────────────────────────────
@@ -837,5 +1294,233 @@ onMounted(() => {
 }
 :deep(.el-empty__description) {
   color: #666;
+}
+
+/* ── 画板视图布局 ────────────────────────────────────── */
+.canvas-layout {
+  display: flex;
+  height: 600px;
+  gap: 0;
+  border: 1px solid #333;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #111;
+}
+
+/* 左侧工具栏 */
+.canvas-toolbox {
+  width: 140px;
+  flex-shrink: 0;
+  background: #1a1a1a;
+  border-right: 1px solid #333;
+  padding: 12px;
+  overflow-y: auto;
+}
+
+.toolbox-title {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.toolbox-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  cursor: grab;
+  color: #ccc;
+  font-size: 13px;
+  transition: background 0.15s;
+  user-select: none;
+}
+
+.toolbox-item:hover {
+  background: #2a2a2a;
+}
+
+.toolbox-item.dragging {
+  opacity: 0.5;
+  background: #2a2a2a;
+}
+
+.toolbox-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.toolbox-label {
+  white-space: nowrap;
+}
+
+/* 中间画布区 */
+.canvas-area {
+  flex: 1;
+  position: relative;
+  overflow: auto;
+  background:
+    radial-gradient(circle, #1a1a1a 1px, transparent 1px);
+  background-size: 24px 24px;
+  min-height: 600px;
+}
+
+.canvas-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.canvas-edge {
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.canvas-edge:hover {
+  stroke: #409EFF;
+  stroke-width: 3;
+}
+
+/* 画布上的节点 */
+.canvas-node {
+  position: absolute;
+  width: 150px;
+  min-height: 60px;
+  background: #1e1e1e;
+  border: 1px solid #409EFF;
+  border-radius: 8px;
+  cursor: move;
+  z-index: 2;
+  transition: box-shadow 0.15s, border-color 0.15s;
+  user-select: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.canvas-node:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  z-index: 3;
+}
+
+.canvas-node.selected {
+  box-shadow: 0 0 0 2px #409EFF, 0 4px 16px rgba(64,158,255,0.3);
+  z-index: 4;
+}
+
+.canvas-node-header {
+  padding: 4px 10px;
+  border-radius: 7px 7px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.canvas-node-body {
+  padding: 8px 10px;
+}
+
+.canvas-node-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e0e0e0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.canvas-node-meta {
+  font-size: 11px;
+  color: #666;
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 连线锚点 */
+.canvas-anchor {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #333;
+  border: 2px solid #555;
+  cursor: crosshair;
+  z-index: 5;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+
+.canvas-anchor:hover {
+  background: #409EFF;
+  border-color: #409EFF;
+  transform: scale(1.3);
+}
+
+.anchor-output {
+  right: -6px;
+  top: 50%;
+  margin-top: -6px;
+}
+
+.anchor-input {
+  left: -6px;
+  top: 50%;
+  margin-top: -6px;
+}
+
+/* 空状态 */
+.canvas-empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: #888;
+  font-size: 14px;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* 右侧配置面板 */
+.canvas-config {
+  width: 240px;
+  flex-shrink: 0;
+  background: #1a1a1a;
+  border-left: 1px solid #333;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.canvas-config-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #555;
+}
+
+.config-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ccc;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #333;
+}
+
+.config-id,
+.config-pos {
+  font-size: 12px;
+  color: #666;
+  font-family: monospace;
 }
 </style>
