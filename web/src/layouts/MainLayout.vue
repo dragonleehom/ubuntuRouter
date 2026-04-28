@@ -26,96 +26,96 @@
         <!-- 仪表盘（独立项，不折叠） -->
         <el-menu-item index="/dashboard">
           <el-icon><DataBoard /></el-icon>
-          <span>仪表盘</span>
+          <span>{{ t('仪表盘') }}</span>
         </el-menu-item>
 
         <!-- 2. 路由状态 -->
         <el-sub-menu index="/status">
           <template #title>
             <el-icon><Monitor /></el-icon>
-            <span>路由状态</span>
+            <span>{{ t('路由状态') }}</span>
           </template>
-          <el-menu-item index="/status/overview">概览</el-menu-item>
-          <el-menu-item index="/status/interfaces">接口总览</el-menu-item>
-          <el-menu-item index="/status/routes">路由表</el-menu-item>
-          <el-menu-item index="/status/firewall">防火墙状态</el-menu-item>
-          <el-menu-item index="/status/realtime">实时流量</el-menu-item>
-          <el-menu-item index="/status/traffic">流量监控</el-menu-item>
-          <el-menu-item index="/status/syslog">系统日志</el-menu-item>
-          <el-menu-item index="/status/processes">在线设备</el-menu-item>
+          <el-menu-item index="/status/overview">{{ t('概览') }}</el-menu-item>
+          <el-menu-item index="/status/interfaces">{{ t('接口总览') }}</el-menu-item>
+          <el-menu-item index="/status/routes">{{ t('路由表') }}</el-menu-item>
+          <el-menu-item index="/status/firewall">{{ t('防火墙状态') }}</el-menu-item>
+          <el-menu-item index="/status/realtime">{{ t('实时流量') }}</el-menu-item>
+          <el-menu-item index="/status/traffic">{{ t('流量监控') }}</el-menu-item>
+          <el-menu-item index="/status/syslog">{{ t('系统日志') }}</el-menu-item>
+          <el-menu-item index="/status/processes">{{ t('在线设备') }}</el-menu-item>
         </el-sub-menu>
 
         <!-- 3. 网络配置 -->
         <el-sub-menu index="/network">
           <template #title>
             <el-icon><Connection /></el-icon>
-            <span>网络配置</span>
+            <span>{{ t('网络配置') }}</span>
           </template>
-          <el-menu-item index="/network/interfaces">接口</el-menu-item>
-          <el-menu-item index="/network/wizard">联网向导</el-menu-item>
-          <el-menu-item index="/network/wireless">无线</el-menu-item>
-          <el-menu-item index="/network/dhcp">DHCP 服务器</el-menu-item>
-          <el-menu-item index="/network/hostnames">主机名映射</el-menu-item>
-          <el-menu-item index="/network/dns">DNS 设置</el-menu-item>
-          <el-menu-item index="/network/static-routes">静态路由</el-menu-item>
-          <el-menu-item index="/network/firewall">防火墙规则</el-menu-item>
-          <el-menu-item index="/network/port-forward">端口转发</el-menu-item>
-          <el-menu-item index="/network/qos">SQM QoS</el-menu-item>
-          <el-menu-item index="/network/turbo-acc">Turbo ACC</el-menu-item>
-          <el-menu-item index="/network/diagnostics">网络诊断</el-menu-item>
-          <el-menu-item index="/network/upnp">UPnP</el-menu-item>
+          <el-menu-item index="/network/interfaces">{{ t('接口') }}</el-menu-item>
+          <el-menu-item index="/network/wizard">{{ t('联网向导') }}</el-menu-item>
+          <el-menu-item index="/network/wireless">{{ t('无线') }}</el-menu-item>
+          <el-menu-item index="/network/dhcp">{{ t('DHCP 服务器') }}</el-menu-item>
+          <el-menu-item index="/network/hostnames">{{ t('主机名映射') }}</el-menu-item>
+          <el-menu-item index="/network/dns">{{ t('DNS 设置') }}</el-menu-item>
+          <el-menu-item index="/network/static-routes">{{ t('静态路由') }}</el-menu-item>
+          <el-menu-item index="/network/firewall">{{ t('防火墙规则') }}</el-menu-item>
+          <el-menu-item index="/network/port-forward">{{ t('端口转发') }}</el-menu-item>
+          <el-menu-item index="/network/qos">{{ t('SQM QoS') }}</el-menu-item>
+          <el-menu-item index="/network/turbo-acc">{{ t('Turbo ACC') }}</el-menu-item>
+          <el-menu-item index="/network/diagnostics">{{ t('网络诊断') }}</el-menu-item>
+          <el-menu-item index="/network/upnp">{{ t('UPnP') }}</el-menu-item>
         </el-sub-menu>
 
         <!-- 4. 远程服务 -->
         <el-sub-menu index="/remote">
           <template #title>
             <el-icon><Connection /></el-icon>
-            <span>远程服务</span>
+            <span>{{ t('远程服务') }}</span>
           </template>
-          <el-menu-item index="/remote/ddns">动态域名</el-menu-item>
+          <el-menu-item index="/remote/ddns">{{ t('动态域名') }}</el-menu-item>
           <!-- VPN 带三级子菜单 -->
           <el-sub-menu index="/remote/vpn">
-            <template #title><span>VPN 设置</span></template>
-            <el-menu-item index="/remote/vpn">概览</el-menu-item>
-            <el-menu-item index="/remote/vpn/tailscale">Tailscale</el-menu-item>
+            <template #title><span>{{ t('VPN 设置') }}</span></template>
+            <el-menu-item index="/remote/vpn">{{ t('概览') }}</el-menu-item>
+            <el-menu-item index="/remote/vpn/tailscale">{{ t('Tailscale') }}</el-menu-item>
           </el-sub-menu>
-          <el-menu-item index="/remote/frp-client">FRP 客户端</el-menu-item>
-          <el-menu-item index="/remote/frp-server">FRP 服务端</el-menu-item>
-          <el-menu-item index="/remote/socat">Socat</el-menu-item>
-          <el-menu-item index="/remote/webdav">WebDAV</el-menu-item>
+          <el-menu-item index="/remote/frp-client">{{ t('FRP 客户端') }}</el-menu-item>
+          <el-menu-item index="/remote/frp-server">{{ t('FRP 服务端') }}</el-menu-item>
+          <el-menu-item index="/remote/socat">{{ t('Socat') }}</el-menu-item>
+          <el-menu-item index="/remote/webdav">{{ t('WebDAV') }}</el-menu-item>
         </el-sub-menu>
 
         <!-- 5. 存储管理 -->
         <el-sub-menu index="/storage">
           <template #title>
             <el-icon><Monitor /></el-icon>
-            <span>存储管理</span>
+            <span>{{ t('存储管理') }}</span>
           </template>
-          <el-menu-item index="/storage/overview">磁盘概览</el-menu-item>
-          <el-menu-item index="/storage/files">文件管理</el-menu-item>
-          <el-menu-item index="/storage/samba">Samba</el-menu-item>
-          <el-menu-item index="/storage/ftp">FTP</el-menu-item>
-          <el-menu-item index="/storage/nfs">NFS</el-menu-item>
-          <el-menu-item index="/storage/disks">磁盘管理</el-menu-item>
-          <el-menu-item index="/storage/backup">备份还原</el-menu-item>
+          <el-menu-item index="/storage/overview">{{ t('磁盘概览') }}</el-menu-item>
+          <el-menu-item index="/storage/files">{{ t('文件管理') }}</el-menu-item>
+          <el-menu-item index="/storage/samba">{{ t('Samba') }}</el-menu-item>
+          <el-menu-item index="/storage/ftp">{{ t('FTP') }}</el-menu-item>
+          <el-menu-item index="/storage/nfs">{{ t('NFS') }}</el-menu-item>
+          <el-menu-item index="/storage/disks">{{ t('磁盘管理') }}</el-menu-item>
+          <el-menu-item index="/storage/backup">{{ t('备份还原') }}</el-menu-item>
         </el-sub-menu>
 
         <!-- 6. 应用管理 -->
         <el-sub-menu index="/apps">
           <template #title>
             <el-icon><Goods /></el-icon>
-            <span>应用管理</span>
+            <span>{{ t('应用管理') }}</span>
           </template>
-          <el-menu-item index="/apps/market">应用市场</el-menu-item>
-          <el-menu-item index="/apps/installed">已安装应用</el-menu-item>
+          <el-menu-item index="/apps/market">{{ t('应用市场') }}</el-menu-item>
+          <el-menu-item index="/apps/installed">{{ t('已安装应用') }}</el-menu-item>
           <!-- Docker 带三级子菜单 -->
           <el-sub-menu index="/apps/docker">
-            <template #title><span>Docker</span></template>
-            <el-menu-item index="/apps/docker">概览</el-menu-item>
-            <el-menu-item index="/apps/docker/containers">容器</el-menu-item>
-            <el-menu-item index="/apps/docker/images">镜像</el-menu-item>
-            <el-menu-item index="/apps/docker/networks">网络</el-menu-item>
-            <el-menu-item index="/apps/docker/volumes">存储卷</el-menu-item>
+            <template #title><span>{{ t('Docker') }}</span></template>
+            <el-menu-item index="/apps/docker">{{ t('概览') }}</el-menu-item>
+            <el-menu-item index="/apps/docker/containers">{{ t('容器') }}</el-menu-item>
+            <el-menu-item index="/apps/docker/images">{{ t('镜像') }}</el-menu-item>
+            <el-menu-item index="/apps/docker/networks">{{ t('网络') }}</el-menu-item>
+            <el-menu-item index="/apps/docker/volumes">{{ t('存储卷') }}</el-menu-item>
           </el-sub-menu>
         </el-sub-menu>
 
@@ -123,32 +123,32 @@
         <el-sub-menu index="/system">
           <template #title>
             <el-icon><Setting /></el-icon>
-            <span>系统设置</span>
+            <span>{{ t('系统设置') }}</span>
           </template>
-          <el-menu-item index="/system/settings">系统</el-menu-item>
-          <el-menu-item index="/system/users">用户管理</el-menu-item>
-          <el-menu-item index="/system/ssh-keys">SSH 密钥</el-menu-item>
-          <el-menu-item index="/system/software">软件包</el-menu-item>
-          <el-menu-item index="/system/upgrade">系统升级</el-menu-item>
-          <el-menu-item index="/system/startup">启动项</el-menu-item>
-          <el-menu-item index="/system/scheduled-tasks">定时任务</el-menu-item>
-          <el-menu-item index="/system/led">LED 配置</el-menu-item>
-          <el-menu-item index="/system/snmp">SNMP</el-menu-item>
-          <el-menu-item index="/system/tls">HTTPS 证书</el-menu-item>
-          <el-menu-item index="/system/ttyd">TTYD 终端</el-menu-item>
-          <el-menu-item index="/system/devices">设备管理</el-menu-item>
-          <el-menu-item index="/system/config">配置编辑</el-menu-item>
-          <el-menu-item index="/system/timed-reboot">定时重启</el-menu-item>
+          <el-menu-item index="/system/settings">{{ t('系统') }}</el-menu-item>
+          <el-menu-item index="/system/users">{{ t('用户管理') }}</el-menu-item>
+          <el-menu-item index="/system/ssh-keys">{{ t('SSH 密钥') }}</el-menu-item>
+          <el-menu-item index="/system/software">{{ t('软件包') }}</el-menu-item>
+          <el-menu-item index="/system/upgrade">{{ t('系统升级') }}</el-menu-item>
+          <el-menu-item index="/system/startup">{{ t('启动项') }}</el-menu-item>
+          <el-menu-item index="/system/scheduled-tasks">{{ t('定时任务') }}</el-menu-item>
+          <el-menu-item index="/system/led">{{ t('LED 配置') }}</el-menu-item>
+          <el-menu-item index="/system/snmp">{{ t('SNMP') }}</el-menu-item>
+          <el-menu-item index="/system/tls">{{ t('HTTPS 证书') }}</el-menu-item>
+          <el-menu-item index="/system/ttyd">{{ t('TTYD 终端') }}</el-menu-item>
+          <el-menu-item index="/system/devices">{{ t('设备管理') }}</el-menu-item>
+          <el-menu-item index="/system/config">{{ t('配置编辑') }}</el-menu-item>
+          <el-menu-item index="/system/timed-reboot">{{ t('定时重启') }}</el-menu-item>
         </el-sub-menu>
 
         <!-- 8. 重启关机 -->
         <el-sub-menu index="/power">
           <template #title>
             <el-icon><SwitchButton /></el-icon>
-            <span>重启关机</span>
+            <span>{{ t('重启关机') }}</span>
           </template>
-          <el-menu-item index="/power/reboot">重启</el-menu-item>
-          <el-menu-item index="/power/shutdown">关机</el-menu-item>
+          <el-menu-item index="/power/reboot">{{ t('重启') }}</el-menu-item>
+          <el-menu-item index="/power/shutdown">{{ t('关机') }}</el-menu-item>
         </el-sub-menu>
       </el-menu>
 
@@ -167,19 +167,34 @@
           <el-button v-if="isMobile" class="hamburger-btn" text @click="mobileMenuOpen = !mobileMenuOpen">
             <el-icon :size="22"><Operation /></el-icon>
           </el-button>
-          <el-tag size="small" :type="connected ? 'success' : 'danger'" effect="dark">{{ connected ? '在线' : '离线' }}</el-tag>
+          <el-tag size="small" :type="connected ? 'success' : 'danger'" effect="dark">{{ connected ? t('在线') : t('离线') }}</el-tag>
           <span class="topbar-title">{{ pageTitle }}</span>
         </div>
         <div class="topbar-right">
-          <el-tooltip content="切换主题" placement="bottom">
+          <!-- 语言切换 -->
+          <el-tooltip :content="t('切换语言')" placement="bottom">
+            <el-dropdown trigger="click" @command="localeStore.setLocale">
+              <el-button text class="theme-toggle-btn">
+                <el-icon><Connection /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="zh-CN" :class="{ active: localeStore.locale === 'zh-CN' }">{{ t('中文') }}</el-dropdown-item>
+                  <el-dropdown-item command="en" :class="{ active: localeStore.locale === 'en' }">{{ t('English') }}</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </el-tooltip>
+          <!-- 主题切换 -->
+          <el-tooltip :content="t('切换主题')" placement="bottom">
             <el-button text @click="themeStore.toggleTheme()" class="theme-toggle-btn">
               <el-icon><Sunny v-if="themeStore.theme === 'dark'" /><Moon v-else /></el-icon>
             </el-button>
           </el-tooltip>
-          <span class="user-name">{{ authStore.user?.username || '用户' }}</span>
+          <span class="user-name">{{ authStore.user?.username || t('用户') }}</span>
           <el-button text @click="authStore.logout">
             <el-icon><SwitchButton /></el-icon>
-            <span class="logout-text">退出</span>
+            <span class="logout-text">{{ t('退出') }}</span>
           </el-button>
         </div>
       </el-header>
@@ -198,6 +213,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores'
 import { useThemeStore } from '@/stores/theme'
+import { useLocaleStore } from '@/stores/locale'
 import PendingChangesBar from '@/components/PendingChangesBar.vue'
 import {
   Monitor, DataBoard, Connection, Lock, Setting,
@@ -208,10 +224,16 @@ import {
 const route = useRoute()
 const authStore = useAuthStore()
 const themeStore = useThemeStore()
+const localeStore = useLocaleStore()
 const isCollapse = ref(false)
 const connected = ref(true)
 const mobileMenuOpen = ref(false)
 const isMobile = ref(window.innerWidth < 768)
+
+// 本地化翻译函数
+function t(key) {
+  return localeStore.t(key)
+}
 
 // 根据路由的 meta.title 动态获取页面标题
 const pageTitle = computed(() => {
@@ -384,5 +406,10 @@ onUnmounted(() => {
 }
 .theme-toggle-btn:hover {
   color: #409EFF;
+}
+/* 语言切换下拉框激活项 */
+.el-dropdown-menu__item.active {
+  color: #409EFF;
+  font-weight: 600;
 }
 </style>
