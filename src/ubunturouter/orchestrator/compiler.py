@@ -33,12 +33,19 @@ ROUTING_TABLES = {
 @dataclass
 class RuleMatch:
     """规则的匹配条件"""
-    devices: List[str] = field(default_factory=list)      # MAC 地址列表
-    apps: List[str] = field(default_factory=list)          # 应用名称列表
-    ports: List[str] = field(default_factory=list)         # 端口列表 (如 "443", "80-443")
-    protocols: List[str] = field(default_factory=list)     # 协议列表 (tcp/udp)
-    src_ips: List[str] = field(default_factory=list)       # 源 IP 列表
-    dst_ips: List[str] = field(default_factory=list)       # 目标 IP 列表
+    devices: List[str] = field(default_factory=list)          # MAC 地址列表
+    apps: List[str] = field(default_factory=list)              # 应用名称列表
+    ports: List[str] = field(default_factory=list)             # 端口列表 (如 "443", "80-443")
+    protocols: List[str] = field(default_factory=list)         # 协议列表 (tcp/udp)
+    src_ips: List[str] = field(default_factory=list)           # 源 IP 列表
+    dst_ips: List[str] = field(default_factory=list)           # 目标 IP 列表
+    exclude_devices: List[str] = field(default_factory=list)   # 排除的设备 MAC 列表
+    exclude_apps: List[str] = field(default_factory=list)      # 排除的应用名称列表
+    exclude_ports: List[str] = field(default_factory=list)     # 排除的端口列表
+    time_range: str = ""                                       # 时间范围 (如 "09:00-18:00")
+    rate_limit: str = ""                                       # 限速 (如 "10mbit", "1000pps")
+    dscp: int = 0                                              # DSCP 标记值 (0-63)
+    connstate: str = ""                                        # 连接状态 (如 "new", "established", "related")
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -48,6 +55,13 @@ class RuleMatch:
             "protocols": self.protocols,
             "src_ips": self.src_ips,
             "dst_ips": self.dst_ips,
+            "exclude_devices": self.exclude_devices,
+            "exclude_apps": self.exclude_apps,
+            "exclude_ports": self.exclude_ports,
+            "time_range": self.time_range,
+            "rate_limit": self.rate_limit,
+            "dscp": self.dscp,
+            "connstate": self.connstate,
         }
 
 
@@ -268,6 +282,30 @@ class RuleCompiler:
                 if day not in valid_days:
                     errors.append(f"日期 '{day}' 无效")
 
+        # 校验时间范围格式
+        if rule.match.time_range:
+            time_pattern = re.compile(r"^\d{2}:\d{2}-\d{2}:\d{2}$")
+            if not time_pattern.match(rule.match.time_range):
+                errors.append("时间范围格式无效 (需要 HH:MM-HH:MM)")
+
+        # 校验 DSCP 值范围
+        if rule.match.dscp:
+            if not (0 <= rule.match.dscp <= 63):
+                errors.append(f"DSCP 值 {rule.match.dscp} 无效，有效范围: 0-63")
+
+        # 校验连接状态
+        if rule.match.connstate:
+            valid_states = {"new", "established", "related", "invalid"}
+            for state in rule.match.connstate.split(","):
+                if state.strip() not in valid_states:
+                    errors.append(f"连接状态 '{state.strip()}' 无效")
+
+        # 校验限速格式 (基本格式检查)
+        if rule.match.rate_limit:
+            rate = rule.match.rate_limit
+            if not any(rate.endswith(suffix) for suffix in ["bit", "kbit", "mbit", "gbit", "pps", "kpps", "mpps"]):
+                errors.append(f"限速格式 '{rate}' 无效 (示例: 10mbit, 1000pps)")
+
         return errors
 
     # ─── 查询 ──────────────────────────────────────────────────
@@ -325,7 +363,7 @@ class RuleCompiler:
         return cmds
 
     def _build_match_expression(self, rule: Rule, set_name: str) -> str:
-        """构建 nftables 匹配表达式"""
+        """构建 nftables 匹配表达式（支持增强字段）"""
         parts: List[str] = []
 
         # 设备匹配 (MAC)
@@ -335,9 +373,20 @@ class RuleCompiler:
             )
             parts.append(f"({mac_match})")
 
+        # 排除设备 (取反)
+        if rule.match.exclude_devices:
+            exclude_mac = " && ".join(
+                f"ether saddr != {mac}" for mac in rule.match.exclude_devices
+            )
+            parts.append(f"({exclude_mac})")
+
         # 应用匹配 (目标 IP)
         if rule.match.apps:
             parts.append(f"ip daddr @{set_name}")
+
+        # 排除应用 (取反 IP set)
+        if rule.match.exclude_apps:
+            parts.append(f"ip daddr != @{set_name}")
 
         # 端口匹配
         if rule.match.ports:
@@ -345,6 +394,13 @@ class RuleCompiler:
                 f"th dport {{{p}}}" for p in rule.match.ports
             )
             parts.append(f"({port_match})")
+
+        # 排除端口
+        if rule.match.exclude_ports:
+            exclude_port = " && ".join(
+                f"th dport != {{{p}}}" for p in rule.match.exclude_ports
+            )
+            parts.append(f"({exclude_port})")
 
         # 协议匹配
         if rule.match.protocols:
@@ -366,6 +422,22 @@ class RuleCompiler:
                 f"ip daddr {ip}" for ip in rule.match.dst_ips
             )
             parts.append(f"({dst_match})")
+
+        # 时间范围匹配 (通过 nftables 的 meta hour)
+        if rule.match.time_range:
+            try:
+                start_t, end_t = rule.match.time_range.split("-")
+                parts.append(f"(meta hour >= \"{start_t}\" meta hour <= \"{end_t}\")")
+            except ValueError:
+                logger.warning("Invalid time_range format: %s", rule.match.time_range)
+
+        # DSCP 标记 (匹配已有 DSCP)
+        if rule.match.dscp:
+            parts.append(f"(ip dscp {rule.match.dscp})")
+
+        # 连接状态匹配 (ct state)
+        if rule.match.connstate:
+            parts.append(f"(ct state {rule.match.connstate})")
 
         return " && ".join(parts) if parts else ""
 
@@ -479,6 +551,13 @@ class RuleCompiler:
                                 protocols=match_data.get("protocols", []),
                                 src_ips=match_data.get("src_ips", []),
                                 dst_ips=match_data.get("dst_ips", []),
+                                exclude_devices=match_data.get("exclude_devices", []),
+                                exclude_apps=match_data.get("exclude_apps", []),
+                                exclude_ports=match_data.get("exclude_ports", []),
+                                time_range=match_data.get("time_range", ""),
+                                rate_limit=match_data.get("rate_limit", ""),
+                                dscp=match_data.get("dscp", 0),
+                                connstate=match_data.get("connstate", ""),
                             ),
                             action=RuleAction(
                                 action=action_data.get("action", "route"),
