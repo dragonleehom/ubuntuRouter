@@ -71,7 +71,7 @@ def _calculate_stats(app_data: dict) -> dict:
 @router.get("/{app_id}")
 async def get_app_ratings(app_id: str, auth=Depends(require_auth)):
     """获取应用评分（平均分+评分人数+评分分布+当前用户评分）"""
-    username = auth.get("username", "")
+    username = auth.sub
 
     with _lock:
         all_ratings = _load_ratings()
@@ -107,7 +107,7 @@ async def submit_rating(
         {"rating": 3}
         {"rating": 5, "comment": "非常好用"}
     """
-    username = auth.get("username")
+    username = auth.sub
     if not username:
         raise HTTPException(status_code=401, detail="无法识别用户身份")
 
@@ -160,7 +160,7 @@ async def submit_rating(
 @router.get("/{app_id}/my")
 async def get_my_rating(app_id: str, auth=Depends(require_auth)):
     """获取当前用户对应用的评分"""
-    username = auth.get("username")
+    username = auth.sub
     if not username:
         raise HTTPException(status_code=401, detail="无法识别用户身份")
 
