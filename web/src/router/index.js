@@ -30,7 +30,6 @@ const redirectMap = {
   '/diag': '/network/diagnostics',
   '/backup': '/storage/backup',
   '/config': '/system/config',
-  '/orchestrator': '/network/interfaces',
   '/vm': '/apps/docker',
   '/system': '/system/settings',
 }

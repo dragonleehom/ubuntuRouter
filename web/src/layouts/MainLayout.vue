@@ -65,6 +65,7 @@
           <el-menu-item index="/network/turbo-acc">{{ t('Turbo ACC') }}</el-menu-item>
           <el-menu-item index="/network/diagnostics">{{ t('网络诊断') }}</el-menu-item>
           <el-menu-item index="/network/upnp">{{ t('UPnP') }}</el-menu-item>
+          <el-menu-item index="/orchestrator/canvas">{{ t('流量编排') }}</el-menu-item>
         </el-sub-menu>
 
         <!-- 4. 远程服务 -->
