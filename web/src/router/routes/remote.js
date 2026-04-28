@@ -17,12 +17,7 @@ export default [
         meta: { title: 'VPN 设置' },
         component: () => import('@/views/vpn/VpnTunnels.vue'),
       },
-      {
-        path: 'vpn/tailscale',
-        name: 'RemoteVpnTailscale',
-        meta: { title: 'Tailscale' },
-        component: () => import('@/views/vpn/VpnTunnels.vue'), // 后续拆分出独立 Tailscale 页
-      },
+
       {
         path: 'frp-client',
         name: 'RemoteFrpClient',

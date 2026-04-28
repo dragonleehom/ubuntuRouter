@@ -1,4 +1,11 @@
-"""UbuntuRouter VPN 管理器 — WireGuard 隧道 CRUD + 运行时状态"""
+"""UbuntuRouter VPN 管理器 — WireGuard / PPTP / IPSec / OpenVPN 后端管理器
+
+导出所有管理器和数据模型。
+每个管理器在独立模块中:
+  - vpn.pptp       → PptpManager, PptpConfig, PptpUser, PptpConnection
+  - vpn.ipsec      → IpsecManager, IpsecConfig, IpsecUser, IpsecConnection
+  - vpn.openvpn    → OpenvpnManager, OpenvpnConfig, OpenvpnClient, OpenvpnConnection
+"""
 
 import subprocess
 import json
@@ -480,3 +487,10 @@ class VpnManager:
                     }
                     current["peers"].append(peer)
         return tunnels
+
+
+# ─── 新管理器导出 ──────────────────────────────────────────
+
+from .pptp import PptpManager, PptpConfig, PptpUser, PptpConnection
+from .ipsec import IpsecManager, IpsecConfig, IpsecUser, IpsecConnection
+from .openvpn import OpenvpnManager, OpenvpnConfig, OpenvpnClient, OpenvpnConnection
