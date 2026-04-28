@@ -690,8 +690,11 @@ class FirewallManager:
                     field = f"{payload.get('protocol', '')} {payload.get('field', '')}"
                 else:
                     field = left.get("meta", {}).get("key", "") or json.dumps(left)
-                val = right.get("set", [right.get("value", "")])[0] \
-                    if isinstance(right.get("set"), list) else right.get("value", "")
+                if isinstance(right, str):
+                    val = right
+                else:
+                    val = right.get("set", [right.get("value", "")])[0] \
+                        if isinstance(right.get("set"), list) else right.get("value", "")
                 parts.append(f"{field} {op} {val}")
             elif "counter" in expr:
                 c = expr["counter"]
