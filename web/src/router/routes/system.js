@@ -83,6 +83,12 @@ export default [
         meta: { title: '系统升级' },
         component: () => import('@/views/SystemUpdate.vue'),
       },
+      {
+        path: 'tls',
+        name: 'SystemTls',
+        meta: { title: 'HTTPS 证书' },
+        component: () => import('@/views/tls/TlsManager.vue'),
+      },
     ],
   },
 ]

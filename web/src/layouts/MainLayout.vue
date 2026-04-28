@@ -134,6 +134,7 @@
           <el-menu-item index="/system/scheduled-tasks">定时任务</el-menu-item>
           <el-menu-item index="/system/led">LED 配置</el-menu-item>
           <el-menu-item index="/system/snmp">SNMP</el-menu-item>
+          <el-menu-item index="/system/tls">HTTPS 证书</el-menu-item>
           <el-menu-item index="/system/ttyd">TTYD 终端</el-menu-item>
           <el-menu-item index="/system/devices">设备管理</el-menu-item>
           <el-menu-item index="/system/config">配置编辑</el-menu-item>
