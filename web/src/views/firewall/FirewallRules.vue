@@ -110,17 +110,30 @@
 
         <!-- 连接跟踪 -->
         <el-tab-pane label="连接跟踪" name="conntrack">
-          <div class="toolbar">
-            <el-button type="danger" size="small" @click="flushConntrack">
-              清空连接跟踪
-            </el-button>
+          <div class="conntrack-header">
+            <span class="conntrack-title">共 {{ conntrack.total || 0 }} 条连接</span>
+            <div class="toolbar">
+              <el-button size="small" @click="refreshConntrack">
+                <el-icon style="margin-right:4px"><Refresh /></el-icon>刷新
+              </el-button>
+              <el-button type="danger" size="small" @click="flushConntrack">
+                <el-icon style="margin-right:4px"><Delete /></el-icon>清空
+              </el-button>
+            </div>
           </div>
           <el-table :data="conntrack.entries || []" stripe size="small" v-loading="loading" max-height="500">
             <el-table-column prop="protocol" label="协议" width="80" />
-            <el-table-column prop="src" label="源地址" width="180" />
-            <el-table-column prop="dst" label="目标地址" width="180" />
-            <el-table-column prop="state" label="状态" width="100" class="hide-mobile" />
-            <el-table-column prop="bytes" label="流量" width="100" align="right" class="hide-mobile" />
+            <el-table-column prop="src" label="源地址" min-width="180" />
+            <el-table-column prop="dst" label="目标地址" min-width="180" />
+            <el-table-column label="状态" width="140" class="hide-mobile">
+              <template #default="{ row }">
+                <el-tag :type="stateTagType(row.state)" size="small">
+                  {{ row.state }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="timeout" label="超时(秒)" width="100" align="right" class="hide-mobile" />
+            <el-table-column prop="bytes" label="流量" width="120" align="right" class="hide-mobile" />
           </el-table>
         </el-tab-pane>
       </el-tabs>
@@ -239,9 +252,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh, Plus } from '@element-plus/icons-vue'
+import { Refresh, Plus, Delete } from '@element-plus/icons-vue'
 import { api } from '@/stores'
 
 const loading = ref(false)
@@ -379,6 +392,26 @@ async function addRule() {
   }
 }
 
+async function refreshConntrack() {
+  loading.value = true
+  try {
+    const res = await api.get('/firewall/conntrack?limit=10000')
+    Object.assign(conntrack, res.data)
+  } catch (e) {
+    ElMessage.error('获取连接跟踪数据失败')
+  }
+  loading.value = false
+}
+
+function stateTagType(state) {
+  if (!state) return 'info'
+  const s = state.toUpperCase()
+  if (s === 'ESTABLISHED') return 'success'
+  if (s === 'TIME_WAIT') return 'warning'
+  if (s === 'CLOSE' || s === 'CLOSED') return 'info'
+  return 'info'
+}
+
 async function flushConntrack() {
   try {
     await ElMessageBox.confirm('确定清空所有连接跟踪？', '确认')
@@ -387,6 +420,12 @@ async function flushConntrack() {
     await refreshStats()
   } catch { /* cancelled */ }
 }
+
+watch(activeTab, (tab) => {
+  if (tab === 'conntrack') {
+    refreshConntrack()
+  }
+})
 
 onMounted(refreshStats)
 </script>
@@ -424,5 +463,15 @@ onMounted(refreshStats)
 }
 .toolbar {
   margin-bottom: 12px;
+}
+.conntrack-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.conntrack-title {
+  font-size: 14px;
+  color: #aaa;
 }
 </style>
