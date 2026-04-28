@@ -624,6 +624,52 @@ async def monitor_network_traffic(auth=Depends(require_auth)):
         return {"error": str(e)}
 
 
+@router.get("/traffic-realtime")
+async def monitor_traffic_realtime(auth=Depends(require_auth)):
+    """Real-time traffic + system data for ECharts dashboard.
+
+    Returns aggregated upload_bps, download_bps across all non-loopback
+    interfaces, plus CPU%, memory%, and approximate active connections count.
+    """
+    try:
+        # Network speeds
+        speeds = _compute_network_speed()
+        download_bps = 0.0
+        upload_bps = 0.0
+        for iface, data in speeds.items():
+            download_bps += data.get("rx_bytes_sec", 0.0)
+            upload_bps += data.get("tx_bytes_sec", 0.0)
+
+        # CPU
+        cpu_percent = _get_cpu_usage_delta()
+
+        # Memory
+        mem = _get_memory_usage()
+        memory_percent = mem.get("usage_pct", 0.0)
+
+        # Approximate active connections from conntrack or /proc/net/*
+        connections = 0
+        try:
+            r = subprocess.run(
+                ["sh", "-c", "cat /proc/net/nf_conntrack 2>/dev/null | wc -l || echo 0"],
+                capture_output=True, text=True, timeout=3, shell=True
+            )
+            connections = int(r.stdout.strip() or 0)
+        except Exception:
+            pass
+
+        return {
+            "upload_bps": round(upload_bps, 1),
+            "download_bps": round(download_bps, 1),
+            "cpu_percent": round(cpu_percent, 1),
+            "memory_percent": round(memory_percent, 1),
+            "connections": connections,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @router.get("/processes")
 async def monitor_processes(auth=Depends(require_auth)):
     """Process list sorted by CPU usage (top 50)."""

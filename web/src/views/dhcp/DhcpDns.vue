@@ -84,17 +84,47 @@
           <el-empty v-if="staticLeases.length === 0" description="暂无静态绑定" />
         </el-tab-pane>
 
-        <!-- DHCP 池配置 -->
+        <!-- DHCP 池配置（多池） -->
         <el-tab-pane label="DHCP 池" name="pool">
-          <el-form :model="pool" label-width="120px" size="small" v-if="pool.configured">
-            <el-form-item label="接口">{{ pool.interface }}</el-form-item>
-            <el-form-item label="IP 范围">{{ pool.range_start }} - {{ pool.range_end }}</el-form-item>
-            <el-form-item label="网关">{{ pool.gateway }}</el-form-item>
-            <el-form-item label="租约时间">{{ pool.lease_time }} 小时</el-form-item>
-            <el-form-item label="域名">{{ pool.domain || '未设置' }}</el-form-item>
-            <el-form-item label="活跃租约数">{{ pool.active_leases }}</el-form-item>
-          </el-form>
-          <el-empty v-else description="DHCP 池未配置" />
+          <div class="toolbar">
+            <el-button type="primary" size="small" @click="openAddPoolDialog">
+              <el-icon style="margin-right:4px"><Plus /></el-icon>添加 DHCP 池
+            </el-button>
+          </div>
+          <el-table :data="pools" stripe size="small" v-loading="loading" max-height="500">
+            <el-table-column label="启用" width="60">
+              <template #default="{ row }">
+                <el-tag :type="row.enabled ? 'success' : 'info'" size="small">
+                  {{ row.enabled ? '是' : '否' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="name" label="名称" width="120" />
+            <el-table-column label="IP 范围" min-width="200">
+              <template #default="{ row }">
+                {{ row.range_start }} - {{ row.range_end }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="subnet_mask" label="子网掩码" width="130" />
+            <el-table-column prop="gateway" label="网关" width="140" />
+            <el-table-column label="租约时间" width="100">
+              <template #default="{ row }">
+                {{ (row.lease_time / 3600).toFixed(0) }} 小时
+              </template>
+            </el-table-column>
+            <el-table-column label="DNS" min-width="180">
+              <template #default="{ row }">
+                {{ (row.dns_servers || []).join(', ') }}
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="160" fixed="right">
+              <template #default="{ row }">
+                <el-button text type="primary" size="small" @click="openEditPoolDialog(row)">编辑</el-button>
+                <el-button text type="danger" size="small" @click="deletePool(row)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          <el-empty v-if="pools.length === 0" description="暂无 DHCP 池" />
         </el-tab-pane>
 
         <!-- DNS -->
@@ -164,11 +194,55 @@
         <el-button type="primary" @click="addStaticLease">添加</el-button>
       </template>
     </el-dialog>
+
+    <!-- 添加/编辑 DHCP 池对话框 -->
+    <el-dialog v-model="showPoolDialog" :title="isEditingPool ? '编辑 DHCP 池' : '添加 DHCP 池'" width="550px">
+      <el-form :model="poolForm" label-width="120px" size="small">
+        <el-form-item label="名称">
+          <el-input v-model="poolForm.name" placeholder="如 LAN 池" />
+        </el-form-item>
+        <el-form-item label="启用">
+          <el-switch v-model="poolForm.enabled" />
+        </el-form-item>
+        <el-form-item label="起始 IP">
+          <el-input v-model="poolForm.range_start" placeholder="如 192.168.21.50" />
+        </el-form-item>
+        <el-form-item label="结束 IP">
+          <el-input v-model="poolForm.range_end" placeholder="如 192.168.21.200" />
+        </el-form-item>
+        <el-form-item label="子网掩码">
+          <el-input v-model="poolForm.subnet_mask" placeholder="如 255.255.255.0" />
+        </el-form-item>
+        <el-form-item label="网关">
+          <el-input v-model="poolForm.gateway" placeholder="如 192.168.21.1" />
+        </el-form-item>
+        <el-form-item label="DNS 服务器">
+          <el-select v-model="poolForm.dns_servers" multiple allow-create filterable
+            default-first-option placeholder="输入 DNS 地址后回车" style="width:100%">
+            <el-option v-for="dns in poolForm.dns_servers" :key="dns" :label="dns" :value="dns" />
+          </el-select>
+          <div style="font-size:12px;color:#888;margin-top:4px;">输入后回车添加，点击标签可删除</div>
+        </el-form-item>
+        <el-form-item label="租约时间">
+          <el-input-number v-model="leaseHours" :min="1" :max="8760" size="small" style="width:160px" />
+          <span style="margin-left:8px;color:#888;">小时</span>
+        </el-form-item>
+        <el-form-item label="域名">
+          <el-input v-model="poolForm.domain" placeholder="可选，如 lan" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showPoolDialog = false">取消</el-button>
+        <el-button type="primary" :loading="savingPool" @click="savePool">
+          {{ isEditingPool ? '保存修改' : '添加' }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Delete, Plus } from '@element-plus/icons-vue'
 import { api } from '@/stores'
@@ -176,9 +250,11 @@ import { api } from '@/stores'
 const loading = ref(false)
 const activeTab = ref('leases')
 const showAddStatic = ref(false)
+const savingPool = ref(false)
 
 const leases = ref([])
 const staticLeases = ref([])
+const pools = ref([])
 const pool = reactive({ configured: false })
 const status = reactive({ active: false, enabled: false, active_leases: 0, total_leases: 0, cached_entries: 0 })
 const dnsConfig = reactive({ upstream: [], rewrites: [], forwards: [] })
@@ -188,21 +264,43 @@ const newUpstreamDns = ref('')
 const newRewrite = reactive({ domain: '', ip: '' })
 const newStaticLease = reactive({ mac: '', ip: '', hostname: '' })
 
+// Pool dialog state
+const showPoolDialog = ref(false)
+const isEditingPool = ref(false)
+const editingPoolId = ref('')
+const poolForm = reactive({
+  name: '',
+  enabled: true,
+  range_start: '',
+  range_end: '',
+  subnet_mask: '255.255.255.0',
+  gateway: '',
+  dns_servers: ['192.168.21.1'],
+  lease_time: 86400,
+  domain: '',
+})
+const leaseHours = computed({
+  get: () => Math.round(poolForm.lease_time / 3600),
+  set: (val) => { poolForm.lease_time = val * 3600 },
+})
+
 async function refreshData() {
   loading.value = true
   try {
-    const [leasesRes, staticRes, poolRes, statusRes, dnsRes] = await Promise.all([
+    const [leasesRes, staticRes, poolRes, statusRes, dnsRes, poolsRes] = await Promise.all([
       api.get('/dhcp/leases'),
       api.get('/dhcp/static-leases'),
       api.get('/dhcp/pool'),
       api.get('/dhcp/status'),
       api.get('/dhcp/dns/config'),
+      api.get('/dhcp/pools'),
     ])
     leases.value = leasesRes.data.leases || []
     staticLeases.value = staticRes.data.leases || []
     Object.assign(pool, poolRes.data)
     Object.assign(status, statusRes.data)
     Object.assign(dnsConfig, dnsRes.data)
+    pools.value = poolsRes.data.pools || []
   } catch (e) {
     ElMessage.error('获取 DHCP/DNS 数据失败')
   }
@@ -241,6 +339,86 @@ async function deleteStaticLease(row) {
     await refreshData()
   } catch { /* cancelled */ }
 }
+
+// ─── Pool CRUD ──────────────────────────────────────────────
+
+function openAddPoolDialog() {
+  isEditingPool.value = false
+  editingPoolId.value = ''
+  poolForm.name = ''
+  poolForm.enabled = true
+  poolForm.range_start = ''
+  poolForm.range_end = ''
+  poolForm.subnet_mask = '255.255.255.0'
+  poolForm.gateway = ''
+  poolForm.dns_servers = ['192.168.21.1']
+  poolForm.lease_time = 86400
+  poolForm.domain = ''
+  showPoolDialog.value = true
+}
+
+function openEditPoolDialog(row) {
+  isEditingPool.value = true
+  editingPoolId.value = row.id
+  poolForm.name = row.name
+  poolForm.enabled = row.enabled
+  poolForm.range_start = row.range_start
+  poolForm.range_end = row.range_end
+  poolForm.subnet_mask = row.subnet_mask || '255.255.255.0'
+  poolForm.gateway = row.gateway
+  poolForm.dns_servers = [...(row.dns_servers || ['192.168.21.1'])]
+  poolForm.lease_time = row.lease_time || 86400
+  poolForm.domain = row.domain || ''
+  showPoolDialog.value = true
+}
+
+async function savePool() {
+  if (!poolForm.range_start || !poolForm.range_end || !poolForm.gateway) {
+    ElMessage.warning('请填写起始IP、结束IP和网关')
+    return
+  }
+  savingPool.value = true
+  try {
+    const payload = {
+      name: poolForm.name,
+      enabled: poolForm.enabled,
+      range_start: poolForm.range_start,
+      range_end: poolForm.range_end,
+      subnet_mask: poolForm.subnet_mask,
+      gateway: poolForm.gateway,
+      dns_servers: poolForm.dns_servers.length > 0 ? poolForm.dns_servers : ['192.168.21.1'],
+      lease_time: poolForm.lease_time,
+      domain: poolForm.domain,
+    }
+    if (isEditingPool.value) {
+      await api.put(`/dhcp/pool/${editingPoolId.value}`, payload)
+      ElMessage.success('DHCP 池已更新')
+    } else {
+      await api.post('/dhcp/pool', payload)
+      ElMessage.success('DHCP 池已添加')
+    }
+    showPoolDialog.value = false
+    await refreshData()
+  } catch (e) {
+    ElMessage.error('操作失败: ' + (e.response?.data?.detail || e.message))
+  }
+  savingPool.value = false
+}
+
+async function deletePool(row) {
+  try {
+    await ElMessageBox.confirm(`确定删除 DHCP 池「${row.name || row.id}」？\n删除后该池分配的 IP 租约将会受到影响。`, '确认删除', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+    await api.delete(`/dhcp/pool/${row.id}`)
+    ElMessage.success('DHCP 池已删除')
+    await refreshData()
+  } catch { /* cancelled */ }
+}
+
+// ─── DNS ─────────────────────────────────────────────────────
 
 async function flushDns() {
   try {

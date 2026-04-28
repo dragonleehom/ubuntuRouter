@@ -41,6 +41,7 @@
           <el-menu-item index="/status/firewall">{{ t('防火墙状态') }}</el-menu-item>
           <el-menu-item index="/status/realtime">{{ t('实时流量') }}</el-menu-item>
           <el-menu-item index="/status/traffic">{{ t('流量监控') }}</el-menu-item>
+          <el-menu-item index="/status/realtime-traffic">{{ t('实时图表') }}</el-menu-item>
           <el-menu-item index="/status/syslog">{{ t('系统日志') }}</el-menu-item>
           <el-menu-item index="/status/processes">{{ t('在线设备') }}</el-menu-item>
         </el-sub-menu>

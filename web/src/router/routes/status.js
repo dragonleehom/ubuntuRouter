@@ -42,6 +42,12 @@ export default [
         component: () => import('@/views/monitor/SystemMonitor.vue'),
       },
       {
+        path: 'realtime-traffic',
+        name: 'StatusRealtimeTraffic',
+        meta: { title: '实时图表' },
+        component: () => import('@/views/monitor/TrafficRealtime.vue'),
+      },
+      {
         path: 'syslog',
         name: 'StatusSyslog',
         meta: { title: '系统日志' },

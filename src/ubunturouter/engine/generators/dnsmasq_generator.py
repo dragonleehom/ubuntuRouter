@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 from typing import List, Optional
 
-from ubunturouter.config.models import UbunturouterConfig, DHCPPoolConfig, DNSConfig, StaticLease
+from ubunturouter.config.models import UbunturouterConfig, DHCPPoolConfig, DHCPPool, DNSConfig, StaticLease
 from ubunturouter.engine.events import GeneratorResult
 from ubunturouter.engine.generators.base import BaseGenerator, register_generator
 
@@ -65,14 +65,34 @@ class DnsmasqGenerator(BaseGenerator):
         lines = [
             "# ── DHCP 配置 ──",
             f"interface={dhcp.interface}",
-            f"dhcp-range={dhcp.range_start},{dhcp.range_end},{dhcp.lease_time // 3600}h",
-            f"dhcp-option=3,{dhcp.gateway}",
         ]
         if dhcp.domain:
             lines.append(f"domain={dhcp.domain}")
-        if dns and dns.upstream:
-            dns_str = ",".join(dns.upstream)
-            lines.append(f"dhcp-option=6,{dns_str}")
+
+        # 每个池生成一条 dhcp-range
+        pools = dhcp.pools if dhcp.pools else []
+        if not pools:
+            # 向后兼容：如果没有 pools，从顶层字段创建默认池
+            pools = [DHCPPool(
+                id="default",
+                name="默认池",
+                range_start=dhcp.range_start if hasattr(dhcp, 'range_start') and dhcp.range_start else "192.168.21.50",
+                range_end=dhcp.range_end if hasattr(dhcp, 'range_end') and dhcp.range_end else "192.168.21.200",
+                gateway=dhcp.gateway if hasattr(dhcp, 'gateway') and dhcp.gateway else "192.168.21.1",
+                dns_servers=dhcp.dns_servers if hasattr(dhcp, 'dns_servers') and dhcp.dns_servers else (dns.upstream if dns and dns.upstream else ["192.168.21.1"]),
+                lease_time=dhcp.lease_time if hasattr(dhcp, 'lease_time') and dhcp.lease_time else 86400,
+                domain=dhcp.domain or None,
+            )]
+
+        for pool in pools:
+            if not pool.enabled:
+                continue
+            lease_hours = max(1, pool.lease_time // 3600)
+            lines.append(f"dhcp-range={pool.range_start},{pool.range_end},{lease_hours}h")
+            lines.append(f"dhcp-option=3,{pool.gateway}")
+            if pool.dns_servers:
+                dns_str = ",".join(pool.dns_servers)
+                lines.append(f"dhcp-option=6,{dns_str}")
 
         for lease in dhcp.static_leases:
             lines.append(f"dhcp-host={lease.mac},{lease.ip},{lease.hostname or ''}")

@@ -76,6 +76,7 @@ export default {
   '路由表': 'Routing Table',
   '防火墙状态': 'Firewall Status',
   '实时流量': 'Real-time Traffic',
+  '实时图表': 'Real-time Charts',
   '流量监控': 'Traffic Monitor',
   '系统日志': 'System Log',
   '在线设备': 'Online Devices',

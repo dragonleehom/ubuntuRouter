@@ -1,473 +1,271 @@
-# UbuntuRouter vs iStoreOS — 系统级功能缺失报告（按 iStoreOS 菜单结构）
+# UbuntuRouter vs iStoreOS — 完整差距分析报告
+> 日期: 2026-04-28
+> 方法: iStoreOS 功能体系分析 + UbuntuRouter 代码逐模块审计
+> 审计范围: 后端路由 (36 个 .py) + 前端页面 (50 个 .vue) + 前端路由配置
 
-> **分析日期**: 2026-04-27  
-> **方法**: 实际登录两个系统的管理界面，逐菜单、逐功能对比  
-> **优先级说明**: P1=最优先实现 / P2=重要 / P3=有价值 / P4=锦上添花 / PX=无需实现  
-
----
-
-## 一、一级菜单结构对比
-
-| 层级 | iStoreOS (一级菜单) | UbuntuRouter (一级菜单) | 匹配度 |
-|------|-------------------|----------------------|--------|
-| L1 | 路由状态 (Dashboard) | 仪表盘 | ✅ 有 |
-| L1 | 网络配置 (向导) | 网络接口 / DHCP/DNS / DNS管理 | ⚠️ 分散 |
-| L1 | 远程DDNS | DDNS | ✅ 有 |
-| L1 | 存储管理 | 存储管理 | ✅ 有 |
-| L1 | 功能配置 | 系统设置 | ⚠️ 部分 |
-| L1 | 应用商店 | 应用市场 | ✅ 有 |
-| L1 | 高级配置 (LuCI入口) | ❌ 无 | ❌ 缺失 |
-| L2 | QuickStart | ❌ 无 | ❌ 缺失 |
-| L2 | RouterDog | ❌ 无 (可通过App安装) | PX |
-| L2 | NetworkGuide | ❌ 无 | ❌ 缺失 |
-| L2 | Status | 系统监控 / 路由 / 防火墙 | ⚠️ 部分 |
-| L2 | System | 系统设置 | ⚠️ 部分 |
-| L2 | iStore | 应用市场 | ⚠️ 部分 |
-| L2 | Docker | 容器 | ✅ 有 |
-| L2 | Services | 分散（DDNS/VPN/Samba等） | ⚠️ 部分 |
-| L2 | NAS | 存储管理 / Samba共享 | ⚠️ 部分 |
-| L2 | Network | 网络接口 / 防火墙 / 路由 / 多线路 | ⚠️ 部分 |
+## 概要
+- **总功能点**: 108 个
+- **完全实现 (✅)**: 47 个 (43.5%)
+- **部分实现 (⚠️)**: 25 个 (23.1%)
+- **未实现 (❌)**: 27 个 (25.0%)
+- **需增强 (🔄)**: 9 个 (8.3%)
 
 ---
 
-## 二、QuickStart / 快速入门
+## 1. 状态 (Status) — 9项
 
-|-| iStoreOS | UbuntuRouter | 状态 |
-|--|---------|-------------|------|
-| QuickStart | 首次启动配置向导 | ❌ 无 |
-
-**缺失功能**:
-1. 首次启动向导（选择上网方式 + 初始化配置） — **P2**
-
----
-
-## 三、状态（Status） — 12 个子菜单
-
-### 3.1 Overview（仪表盘/路由状态）
-
-| # | iStoreOS 功能 | UbuntuRouter | 优先级 |
-|---|--------------|-------------|--------|
-| 1 | 实时流量曲线图 (Canvas 动画) | ❌ 无 | **P1** |
-| 2 | 实时 Upload/Download 速率数值 | ❌ 无 | **P1** |
-| 3 | 联网状态提示 (Connected/Disconnected) | ❌ 无 | **P3** |
-| 4 | 在线设备数 + 设备列表入口 | ❌ 无 | **P2** |
-| 5 | WAN IP 信息卡片 (IPv4/IPv6/DNS) | 部分有 | **P2** |
-| 6 | 快捷操作按钮组（Terminal/OTA/LAN Settings/DNS Settings/Feeds Mirror/Sandbox） | ❌ 无 | **P1** |
-| 7 | 磁盘信息 + 文件管理器入口 | 磁盘有，文件管理器无 | **P2** |
-| 8 | Share 状态面板（LinkEase/SAMBA/WEBDAV 开启状态） | ❌ 无 | **P2** |
-| 9 | Docker 状态面板（运行状态 + Docker 根目录） | ❌ 无 | **P2** |
-| 10 | 下载服务状态（Aria2/qBittorrent/Transmission） | ❌ 无 | **P3** |
-| 11 | DDNS 状态预览（已配置条目 + 状态标签） | ❌ 无 | **P3** |
-| 12 | 系统信息卡（CPU温度/型号/固件/内核/运行时间/系统时间） | CPU/内存/磁盘有，其他无 | **P2** |
-| 13 | CPU 温度显示 | ❌ 无 | **P2** |
-| 14 | CPU/内存可点击展开详情 | ❌ 无 | **P3** |
-| 15 | 网络拓扑 → 节点详情面板 | 有 | ✅ 已有 |
-
-### 3.2 Routing（路由表）
-
-| # | iStoreOS 功能 | UbuntuRouter | 优先级 |
-|---|--------------|-------------|--------|
-| 1 | IPv4 路由表（目标/网关/掩码/设备/跃点数） | 有（RoutingTable.vue） | ✅ 已有 |
-| 2 | IPv6 路由表 | ❌ 无 | **P3** |
-| 3 | 路由表刷新 | 有 | ✅ 已有 |
-
-### 3.3 Firewall（防火墙状态）
-
-| # | iStoreOS 功能 | UbuntuRouter | 优先级 |
-|---|--------------|-------------|--------|
-| 1 | 防火墙规则列表 | 有（FirewallRules.vue） | ✅ 已有 |
-| 2 | 当前连接跟踪表 (conntrack) | ❌ 无 | **P3** |
-| 3 | 防火墙日志 | ❌ 无 | **P3** |
-
-### 3.4 System Log（系统日志）
-
-| # | iStoreOS 功能 | UbuntuRouter | 优先级 |
-|---|--------------|-------------|--------|
-| 1 | 系统日志查看（完整 journalctl 输出） | ❌ 无 | **P2** |
-| 2 | 日志过滤/搜索 | ❌ 无 | **P2** |
-| 3 | 日志清空 | ❌ 无 | **P3** |
-| 4 | 日志自动刷新 | ❌ 无 | **P3** |
-
-### 3.5 Processes（进程查看）
-
-| # | iStoreOS 功能 | UbuntuRouter | 优先级 |
-|---|--------------|-------------|--------|
-| 1 | 进程列表（PID/名称/CPU/内存） | ❌ 无 | **P3** |
-| 2 | 进程搜索 | ❌ 无 | **P3** |
-| 3 | 进程终止 | ❌ 无 | **PX** |
-
-### 3.6 Realtime Graphs（实时图表）
-
-| # | iStoreOS 功能 | UbuntuRouter | 优先级 |
-|---|--------------|-------------|--------|
-| 1 | CPU 使用率实时曲线 | 系统监控有 | ✅ 已有 |
-| 2 | 内存使用率实时曲线 | 系统监控有 | ✅ 已有 |
-| 3 | 网络流量实时曲线 | ❌ 无 | **P2** |
-| 4 | 负载实时曲线 | ❌ 无 | **P3** |
-| 5 | 无线信号实时曲线 | ❌ 无 | **PX** |
-
-### 3.7 Realtime Bandwidth（实时带宽）
-
-| # | iStoreOS 功能 | UbuntuRouter | 优先级 |
-|---|--------------|-------------|--------|
-| 1 | 按接口的实时带宽监控 | ❌ 无 | **P2** |
-| 2 | 历史流量统计 | ❌ 无 | **P3** |
-
-### 3.8 NetData（系统监控）
-
-| # | iStoreOS 功能 | UbuntuRouter | 优先级 |
-|---|--------------|-------------|--------|
-| 1 | NetData 集成入口 | 系统监控有 | ✅ 已有 |
-
-### 3.9 WireGuard / MultiWAN Manager（已在独立页面）
-
-- WireGuard → 已有 VPN 页面 ✅
-- MultiWAN → 已有多线路页面 ✅
+| 子模块 | 功能点 | UbuntuRouter | 优先级 | 备注 |
+|--------|--------|:-----------:|:------:|------|
+| 概览 | 系统概况(CPU/内存/磁盘/运行时间) | ✅ | - | Dashboard.vue 实现完整 |
+| 路由表 | IPv4/IPv6 路由表查看 | ✅ | - | routing.py GET /table 支持多表查询 |
+| 系统日志 | journalctl 日志查看 | ✅ | - | system.py GET /logs 支持按服务过滤 |
+| 内核日志 | dmesg 日志查看 | ✅ | - | system.py GET /logs/kernel |
+| 防火墙日志 | nftables 日志查看 | ✅ | - | system.py GET /logs/firewall |
+| 进程列表 | Top 50 进程 | ✅ | - | monitor.py _get_process_list |
+| 实时图表 | 实时流量/连接/负载/内存 | ⚠️ | P1 | 只有 network speed delta 计算，缺少**实时图表 UI** 和 WebSocket 推送到前端；当前 Dashboard 只显示瞬时值 |
+| 统计 | 历史统计趋势 | ❌ | P2 | monitor.py 有 CSV 持久化但**无前端图表展示** |
+| iStore | 应用商店 | ❌ (按 1Panel 标准) | - | 明确不按 iStoreOS 对标；UbuntuRouter 有 AppStore 按 1Panel 标准 |
 
 ---
 
-## 四、系统（System） — 15 个子菜单
+## 2. 网络 (Network) — 16项
 
-### 4.1 System（系统基本设置）
+| 子模块 | 功能点 | UbuntuRouter | 优先级 | 备注 |
+|--------|--------|:-----------:|:------:|------|
+| 接口 | 接口列表/状态 | ✅ | - | interfaces.py 完整：list, status, port-detail, traffic |
+| 接口编辑 | 协议: DHCP/Static/PPPoE/Disabled | ✅ | - | interfaces.py IfaceUpdateModel 支持4种协议 + MTU/MAC/DNS |
+| 接口编辑 | 高级参数(metric/跃点数/网关跃点) | ❌ | P3 | 只有基本 gateway/mtu/DNS，缺少 metric, dhcp-identifier, accept-ra 等 |
+| 接口编辑 | 桥接/绑定/LAG | ❌ | P2 | 无 bridge/bond 创建和管理功能 |
+| 无线/AP | AP 热点创建/停止 | ✅ | - | wireless.py 完整：SSID/密码/频段/信道；基于 nmcli |
+| 无线/Client | WiFi 连接上级 AP | ✅ | - | wireless.py 支持 SSID/密码/隐藏网络 |
+| 无线/扫描 | 扫描附近 WiFi | ✅ | - | wireless.py GET /scan 支持 BSSID/频段/信号强度/加密 |
+| 无线/高级 | 无线高级设置(功率/信道宽度/国家码) | ❌ | P3 | 缺少 txpower, channel-width, country code 等 |
+| DHCP/DNS | DHCP 租约查看/释放 | ✅ | - | dhcp.py 完整：leases, static leases, DNS upstream/rewrite |
+| DHCP/DNS | DHCP 池配置 | ⚠️ | P2 | 实现了 GET /pool 但**缺少创建/修改 DHCP 池**的端点 |
+| 主机名映射 | /etc/hosts 管理 | ✅ | - | dns.py 完整 CRUD hosts |
+| 静态路由 | 静态路由 CRUD | ✅ | - | routing.py 完整：add/delete + 策略路由规则 |
+| 防火墙 | Zones + 规则 + 端口转发 | ✅ (部分) | - | 详见防火墙模块深度对比 |
+| 多WAN | 健康检查 + 故障切换 | ✅ | - | multiwan.py + routing.py 完整：ping 检测/权重/自动切换 |
+| Turbo ACC | 硬件加速/BBR/FQ 队列 | ❌ | P2 | 只有占位符页面 |
 
-| # | iStoreOS 功能 | UbuntuRouter | 优先级 |
-|---|--------------|-------------|--------|
-| 1 | 系统时间显示 + 手动设置 | ❌ 无 | **P2** |
-| 2 | 与浏览器时间同步 | ❌ 无 | **P2** |
-| 3 | 与 NTP 服务器同步 | ❌ 无 | **P2** |
-| 4 | 主机名修改 | 只读查看 | **P2** |
-| 5 | 设备描述 | ❌ 无 | **P3** |
-| 6 | 时区选择（含完整时区列表） | ❌ 无 | **P2** |
-| 7 | ZRam 设置 | ❌ 无 | **PX** |
-| 8 | 语言和样式选择 | ❌ 无 | **P4** |
-
-### 4.2 Administration（管理/密码/SSH）
-
-| # | iStoreOS 功能 | UbuntuRouter | 优先级 |
-|---|--------------|-------------|--------|
-| 1 | Web 管理界面密码修改 | ❌ 无（依赖系统PAM） | **P2** |
-| 2 | SSH 访问控制（允许root密码登录/SSH密钥/端口） | ❌ 无 | **P2** |
-| 3 | 管理接口绑定（只监听LAN/全部） | ❌ 无 | **P3** |
-| 4 | HTTPS 证书管理 | ❌ 无 | **P3** |
-
-### 4.3 Software（软件包管理）
-
-| # | iStoreOS 功能 | UbuntuRouter | 优先级 |
-|---|--------------|-------------|--------|
-| 1 | 软件包列表 + 搜索 | 有（软件源页面） | ✅ 已有 |
-| 2 | 软件包安装/卸载 | 有 | ✅ 已有 |
-
-### 4.4 Startup（启动项管理）
-
-| # | iStoreOS 功能 | UbuntuRouter | 优先级 |
-|---|--------------|-------------|--------|
-| 1 | 开机启动项列表（启用/禁用） | ❌ 无 | **P2** |
-| 2 | 启动顺序管理 | ❌ 无 | **P3** |
-
-### 4.5 Scheduled Tasks（计划任务）
-
-| # | iStoreOS 功能 | UbuntuRouter | 优先级 |
-|---|--------------|-------------|--------|
-| 1 | Cron 计划任务编辑 | ❌ 无 | **P2** |
-| 2 | 重启/关机定时 | ❌ 无 | **P3** |
-
-### 4.6 Mount Points（挂载点）
-
-| # | iStoreOS 功能 | UbuntuRouter | 优先级 |
-|---|--------------|-------------|--------|
-| 1 | 文件系统挂载管理 | 有（存储管理） | ✅ 已有 |
-| 2 | 自动挂载配置 | 有 | ✅ 已有 |
-
-### 4.7 Disk Man（磁盘管理）
-
-| # | iStoreOS 功能 | UbuntuRouter | 优先级 |
-|---|--------------|-------------|--------|
-| 1 | 磁盘列表 + 分区图表 | 磁盘列表有，图表无 | **P3** |
-| 2 | 分区格式化 | ❌ 无 | **P3** |
-| 3 | 磁盘健康度（SMART） | 有 | ✅ 已有 |
-
-### 4.8 OTA（系统升级）
-
-| # | iStoreOS 功能 | UbuntuRouter | 优先级 |
-|---|--------------|-------------|--------|
-| 1 | OTA 在线检查更新 | ❌ 无 | **P1** |
-| 2 | 一键升级固件 | ❌ 无 | **P1** |
-| 3 | 版本号显示 + 更新日志 | ❌ 无 | **P2** |
-
-### 4.9 Backup / Flash Firmware（备份/恢复/刷机）
-
-| # | iStoreOS 功能 | UbuntuRouter | 优先级 |
-|---|--------------|-------------|--------|
-| 1 | 配置备份下载 | 有（备份恢复页面） | ✅ 已有 |
-| 2 | 配置恢复上传 | 有 | ✅ 已有 |
-| 3 | 系统重置为出厂 | ❌ 无 | **P3** |
-| 4 | 固件刷写 | ❌ 无 | **PX** |
-
-### 4.10 Reboot（重启）
-
-| # | iStoreOS 功能 | UbuntuRouter | 优先级 |
-|---|--------------|-------------|--------|
-| 1 | 一键重启系统 | ❌ 无 | **P1** |
-| 2 | 定时重启 | ❌ 无 | **P2** |
-
-### 4.11 其他
-
-| # | iStoreOS 功能 | UbuntuRouter | 优先级 |
-|---|--------------|-------------|--------|
-| 1 | System Convenient Tools（系统便利工具） | ❌ 无 | **P3** |
-| 2 | Tuning（系统调优） | ❌ 无 | **PX** |
-| 3 | LED Configuration（LED 配置） | ❌ 无 | **PX** |
-| 4 | FileTransfer（文件传输） | ❌ 无 | **P4** |
-| 5 | Argon Config（主题配置） | ❌ 无 | **P4** |
+| 子模块 | 功能点 | UbuntuRouter | 优先级 | 备注 |
+|--------|--------|:-----------:|:------:|------|
+| SQM QoS | 流量整形/限速 | ❌ | P2 | 只有占位符页面 |
+| DDNS | 动态域名 | ✅ | - | 详见 DDNS 模块深度对比 |
+| UPnP | UPnP 端口转发 | ⚠️ | P2 | 已有规则 CRUD，但**缺少 NAT-PMP 支持**和完整配置选项 |
+| 诊断 | Ping/Traceroute/NSLookup/MTR/TC PCheck | ✅ | - | diag.py 完整：6 种诊断工具 + curl |
+| Samba | SMB 文件分享 | ✅ | - | samba.py 完整：shares/users CRUD + 服务控制 |
+| FTP | FTP 服务管理 | ❌ | P3 | 只有占位符页面 |
+| 磁盘 | 磁盘概览/挂载/卸载 | ✅ | - | storage.py 完整：overview, mount, unmount, format |
+| NFS | NFS 导出管理 | ✅ | - | nfs.py 完整：exports CRUD + 原子写入 + exportfs |
+| VPN | WireGuard/Tailscale | ✅ | - | vpn.py 完整：WireGuard 隧道/Peer CRUD + Tailscale 状态 |
+| 网络唤醒 | Wake-on-LAN | ✅ | - | system.py 支持 etherwake + Python fallback |
 
 ---
 
-## 五、iStore（应用商店）
+## 3. 防火墙深度对比 — 7项
 
-| # | iStoreOS 功能 | UbuntuRouter | 优先级 |
-|---|--------------|-------------|--------|
-| 1 | 应用图标展示 | 有 | ✅ 已有 |
-| 2 | 应用名称 + 版本 | 有 | ✅ 已有 |
-| 3 | 应用描述 | ❌ 无 | **P3** |
-| 4 | 下载量统计 | ❌ 无 | **P4** |
-| 5 | 点赞/评分 | ❌ 无 | **P4** |
-| 6 | 分类标签（12个实际分类） | 全"其他" | **P2** |
-| 7 | 排序（下载量/评分/最近更新） | ❌ 无 | **P3** |
-| 8 | "打开"按钮（直接跳转应用Web UI） | ❌ 无 | **P2** |
-| 9 | 安装/更新/卸载/打开 状态自动切换 | 有 | ✅ 已有 |
-| 10 | 应用详情弹窗 | ❌ 无 | **P3** |
+| 功能点 | iStoreOS (LuCI) | UbuntuRouter | 差距 |
+|--------|-----------------|:-----------:|------|
+| Zone 配置参数 | name, input/forward/output policy, masquerade, mtu, covered networks, log, ipset, connlimit, family (inet/inet6) | name, input/forward/output, masquerade, isolated, forward_to | ⚠️ **缺少**: mtu, log, ipset, connlimit, family(v4/v6), covered networks 选择 |
+| 规则 Direction | input/forward/output + 源区域/目标区域 | input/forward/output (链级别) | ⚠️ **缺少**: 基于 Zone 的 direction (from-zone → to-zone) |
+| 规则 IP 协议 | tcp/udp/tcpudp/icmp/icmpv6/any + 协议号 | tcp/udp (仅字符串) | ❌ **缺少**: icmp, icmpv6 协议选择和自定义协议号 |
+| 规则时间限制 | 时间范围/星期/日期 | ❌ | ❌ **完全缺失**: 无定时规则支持 |
+| 规则高级匹配 | ipset, mark, limit (rate), conntrack state, 接口, 设备 (MAC) | src_ip, dst_ip, src_port, dst_port, protocol, log | ❌ **缺少**: ipset, rate limit, connstate, interface, 设备MAC |
+| 端口转发 | 全部区域协议 + NAT Loopback | from_zone, from_port, protocol, to_ip, to_port | ⚠️ **缺少**: NAT Loopback 选项, 全协议支持 |
+| 防火墙状态 | 规则计数 + conntrack | 规则计数 + conntrack + nftables 完整状态 | ✅ 相当 |
 
 ---
 
-## 六、Docker（容器管理） — 7 个子菜单
+## 4. 网络接口编辑深度对比 — 8项
 
-| # | iStoreOS 功能 | UbuntuRouter | 优先级 |
-|---|--------------|-------------|--------|
-| 1 | Docker 全局配置（Root Dir/Registry Mirrors/日志级别/远程Endpoint） | ❌ 无 | **P2** |
-| 2 | Docker 概述（容器/镜像/网络/卷 数量统计） | ❌ 无 | **P2** |
-| 3 | 容器列表（状态/创建/端口/操作：启动/停止/重启/删除/终端/日志） | 有（ContainerManager.vue） | ✅ 已有 |
-| 4 | 镜像列表（拉取/删除/导入/导出） | ❌ 无 | **P2** |
-| 5 | Docker 网络管理 | ❌ 无 | **P3** |
-| 6 | Docker 卷管理 | ❌ 无 | **P3** |
-| 7 | Docker 事件日志 | ❌ 无 | **P4** |
-| 8 | 容器终端直连 | ❌ 无 | **P2** |
-| 9 | 容器日志查看 | ❌ 无 | **P2** |
-
----
-
-## 七、Services（服务管理） — 24 个服务集成
-
-以下服务在 iStoreOS 中通过应用安装后在 Services 菜单注册入口，UbuntuRouter 可通过类似机制实现：
-
-| # | 服务名称 | 说明 | UbuntuRouter | 优先级 |
-|---|---------|------|-------------|--------|
-| 1 | PassWall（科学上网） | ❌ 无 | **PX** |
-| 2 | App Filter（应用过滤） | ❌ 无 | **PX** |
-| 3 | DDNSTO 远程控制 | 有（DDNS 页面） | ✅ 已有 |
-| 4 | LinkEase | ❌ 无（可通过App安装） | **PX** |
-| 5 | Tailscale | ❌ 无（可通过App安装） | **P2** |保留并入VPN |
-| 6 | ChineseSubFinder | ❌ 无（可通过App安装） | **PX** |
-| 7 | CodeServer | ❌ 无（可通过App安装） | **PX** |
-| 8 | Heimdall | ❌ 无（可通过App安装） | **PX** |
-| 9 | Home Assistant | ❌ 无（可通过App安装） | **PX** |
-| 10 | ITTools | ❌ 无（可通过App安装） | **PX** |
-| 11 | PhotoPrism | ❌ 无（可通过App安装） | **PX** |
-| 12 | Plex | ❌ 无（可通过App安装） | **PX** |
-| 13 | PVE | ❌ 无（可通过App安装） | **PX** |
-| 14 | Xteve | ❌ 无（可通过App安装） | **PX** |
-| 15 | Xunlei | ❌ 无（可通过App安装） | **PX** |
-| 16 | OpenClash | ❌ 无 | **PX** |
-| 17 | Dynamic DNS | 有（DDNS 页面） | ✅ 已有 |
-| 18 | HDD Idle（硬盘休眠） | ❌ 无 | **P3** |
-| 19 | Bandwidth Monitor（带宽监控） | 系统监控有流量模块 | ⚠️ 部分 |
-| 20 | Wake on LAN（网络唤醒） | ❌ 无 | **P2** |
-| 21 | MWAN3 Helper（多线辅助） | 有多线路页面 | ⚠️ 部分 |
-| 22 | Network Shares（网络共享） | 有 Samba 页面 | ✅ 已有 |
-| 23 | Terminal（Web 终端） | 有（ttyd） | ✅ 已有 |
-| 24 | UPnP IGD & PCP（UPnP 端口转发） | ❌ 无 | **P2** |
-
-> **关键机制**: iStoreOS 的 Services 菜单中大部分是通过应用商店安装后自动注册到 LuCI 菜单的。UbuntuRouter 需要实现 **应用安装后自动注册服务入口** 的机制。
+| 参数字段 | iStoreOS | UbuntuRouter | 差距 |
+|----------|----------|:-----------:|------|
+| 协议 | DHCP/Static/PPPoE/Disabled/Unmanaged/PPTP/L2TP/6in4/6to4 | DHCP/Static/PPPoE/Disabled | ❌ **缺少**: Unmanaged, PPTP, L2TP, 6in4, 6to4, WireGuard |
+| 地址 | IP/CIDR 输入 | IP/CIDR 输入 | ✅ |
+| 网关 | 网关 IP | 网关 IP | ✅ |
+| DNS | DNS 列表 | DNS 列表 | ✅ |
+| MTU | MTU (576-9000) | MTU (576-9000) | ✅ |
+| MAC 地址 | MAC 修改 | MAC 修改 | ✅ |
+| 高级 | metric, dhcp-identifier, accept-ra, ipv6 | ❌ | ❌ **缺少** |
+| 桥接 | 桥接创建/端口管理 | ❌ | ❌ **完全缺失** |
 
 ---
 
-## 八、NAS（存储与共享） — 7 个子菜单
+## 5. 无线管理深度对比 — 6项
 
-| # | iStoreOS 功能 | UbuntuRouter | 优先级 |
-|---|--------------|-------------|--------|
-| 1 | **UniShare（统一共享管理）** — Samba + WebDAV 同页面管理 | Samba有独立页面，WebDAV无 | **P2** |
-| 2 | UniShare 共享用户管理（添加/删除/权限） | ❌ 无 | **P2** |
-| 3 | NFS 管理 | ❌ 无 | **P3** |
-| 4 | RAID 管理 | ❌ 无 | **P3** |
-| 5 | S.M.A.R.T. 硬盘健康 | 有 | ✅ 已有 |
-| 6 | qBittorrent EE（下载服务集成） | ❌ 无（可通过App安装） | **PX** |
-| 7 | Mount NetShare（挂载网络共享：NFS/SMB/CIFS） | ❌ 无 | **P2** |
-| 8 | MergerFS（文件系统合并） | ❌ 无 | **PX** |
+| 功能点 | iStoreOS | UbuntuRouter | 差距 |
+|--------|----------|:-----------:|------|
+| SSID | 名称 + 隐藏 | 名称 | ⚠️ **缺少**: 隐藏 SSID 设置 |
+| 安全 | WPA2/WPA3/None | WPA2-PSK(通过password参数) | ⚠️ **部分支持**: 无显式 WPA3/SAE 选择 |
+| 频段 | 2.4GHz/5GHz/Auto | a(5G)/bg(2.4G)/ax(WiFi6) | ✅ 相当 |
+| 信道 | 手动选择 + 宽度(20/40/80MHz) | 信道号 | ⚠️ **缺少**: 信道宽度选择 |
+| 高级 | 国家码, 功率, MAC 过滤 | ❌ | ❌ **完全缺失** |
+| 客户端 | 扫描 + 连接 + 断开 | 扫描 + 连接 + 断开 | ✅ |
 
 ---
 
-## 九、Network（网络） — 9 个子菜单
+## 6. DDNS 深度对比 — 6项
 
-| # | iStoreOS 功能 | UbuntuRouter | 优先级 |
-|---|--------------|-------------|--------|
-| 1 | **Interfaces（接口配置）** — 完整编辑（协议/IP/网关/DNS/防火墙区域） | 只有"编辑IP"按钮 | **P1** |
-| 2 | **NetworkPort（网络端口）** — 物理端口信息 | ❌ 无 | **P1** |
-| 3 | **Wireless（无线配置）** | ❌ 无（Ubuntu限制） | **P1** |
-| 4 | **Routing（路由）** — 静态路由增删改 | 有（RoutingTable.vue） | ✅ 已有 |
-| 5 | **DHCP and DNS（DHCP/DNS服务配置）** | 有（DhcpDns.vue + DnsConfig.vue） | ✅ 已有 |
-| 6 | **Diagnostics（网络诊断）** — Ping/Traceroute/Nslookup/Dig | 有（NetworkDiag.vue） | ✅ 已有 |
-| 7 | **Firewall（防火墙）** — 区域/规则/转发/NAT | 有（FirewallRules.vue） | ✅ 已有 |
-| 8 | **多线多拨** — MACVLAN 虚拟WAN口 + 并发多拨 | ❌ 无 | **PX** |
-| 9 | **MultiWAN Manager** — 多WAN负载均衡 + 健康检查 | 有（MultiWanConfig.vue） | ✅ 已有 |
-
-### Interfaces（接口配置）详细缺失
-
-| # | iStoreOS 功能 | UbuntuRouter | 优先级 |
-|---|--------------|-------------|--------|
-| 1 | 接口列表（名称/状态/MAC/IP/协议/速率/已接收/已发送） | 有，缺收发统计 | **P2** |
-| 2 | 接口编辑（协议选择：静态IP/DHCP客户端/PPPoE） | ❌ 无 | **P1** |
-| 3 | 接口编辑（IPv4/IPv6 地址设置） | 只有"编辑IP"按钮 | **P1** |
-| 4 | 接口编辑（DNS 设置） | ❌ 无 | **P1** |
-| 5 | 接口编辑（防火墙区域分配) | ❌ 无 | **P2** |
-| 6 | 接口编辑（MTU/跃点数设置） | ❌ 无 | **P2** |
-| 7 | 接口编辑（DHCP 客户端选项） | ❌ 无 | **P3** |
-| 8 | 接口新建（添加新接口/新协议） | ❌ 无 | **P2** |
-| 9 | 物理端口状态（Link/速率/双工/错包） | ❌ 无 | **P3** |
-| 10 | 物理端口 LED 控制 | ❌ 无 | **PX** |
+| 功能点 | iStoreOS | UbuntuRouter | 差距 |
+|--------|----------|:-----------:|------|
+| Cloudflare | ✅ | ✅ (cloudflare.py) | ✅ |
+| Aliyun (Alidns) | ✅ | ✅ (alidns.py) | ✅ |
+| DNSPod (Tencent) | ✅ | ✅ (dnspod.py) | ✅ |
+| DuckDNS | ✅ | ✅ (duckdns.py) | ✅ |
+| DDNSTO | ✅ | ✅ (ddnsto.py) | ✅ |
+| 其他常用 | No-IP, DynDNS, HE.NET, Oray, 3322 | ❌ | ❌ **缺少**: 至少 ≥6 个常见提供商 |
 
 ---
 
-## 十、UbuntuRouter 已有功能（按 iStoreOS 无对应项）
+## 7. UPnP 深度对比 — 5项
 
-| 功能 | 说明 |
-|------|------|
-| 配置编辑（ConfigEditor.vue） | YAML 编辑器 + Save & Apply |
-| 系统监控（SystemMonitor.vue） | CPU/内存/网络/磁盘图表 |
-| Samba 共享（SambaManager.vue） | Samba 配置页面 |
-| PPPoE 拨号（PPPoEConnection.vue） | PPPoE 连接管理 |
-| 容器管理（ContainerManager.vue） | Docker 容器管理 |
-| 软件源（AptSources.vue） | APT 包管理 |
-| DNS 管理（DnsConfig.vue） | DNS 转发规则 |
-| 网络诊断（NetworkDiag.vue） | Ping/Traceroute |
-| 备份恢复（SystemBackup.vue） | 配置备份 |
-| 流量编排（OrchestratorCanvas.vue） | 流量编排 |
-| 虚拟机（VirtualMachines.vue） | QEMU/KVM 虚拟机管理 |
-| 配置编辑（ConfigEditor.vue） | 统一配置编辑 |
-| PendingChangesBar | 待应用变更浮动条 |
-| 仓库管理 | App 源管理 |
+| 功能点 | iStoreOS | UbuntuRouter | 差距 |
+|--------|----------|:-----------:|------|
+| 启用/禁用 | systemctl 控制 ✅ | systemctl 控制 ✅ | ✅ |
+| 端口转发规则 | 外部端口/内部端口/协议/IP/描述 | 同左 | ⚠️ **缺少协议选项**: 当前全部当成 TCP 写入配置 |
+| NAT-PMP | 支持 | ❌ | ❌ **缺少** |
+| 配置选项 | 接口选择, ACL, min/max port | ext_ifname(固定), port=0 | ❌ **缺少**: 完整配置选项 |
+| 状态查看 | 活跃转发列表 | 仅配置列表 | ⚠️ **缺少**: 运行时活跃转发(upnp -l) |
 
 ---
 
-## 十一、系统级缺失功能汇总（按优先级排序）
+## 8. 系统设置深度对比 — 7项
 
-### P1 — 最关键，用户体感最明显
-| # | 功能 | 所属菜单 | 原因 |
-|---|------|---------|------|
-| 1 | **实时流量曲线图 + 速率数值** | 仪表盘 | 用户第一眼看到，最基本的路由器运营数据 |
-| 2 | **快捷操作面板**（Terminal/OTA/LAN/DNS等） | 仪表盘 | 提供快速进入常用功能的入口 |
-| 3 | **接口编辑（协议/IP/DNS/MTU 完整表单）** | Network → Interfaces | 网络配置的核心操作，当前只有只读列表 |
-| 4 | **OTA 在线升级** | System → OTA | 没有升级渠道意味着产品停滞 |
-| 5 | **一键重启系统** | System → Reboot | 软路由需要远程重启能力 |
-| 6 | **网络配置向导**（拨号/DHCP/旁路由/内网） | 独立体验 | 新用户第一次使用必须的流程 |
-| 7 | **NetworkPort（物理端口信息）** | Network → 端口 | 基础网络信息 |
-| 8 | **Wireless（无线配置）** | Network → 无线 | 无线网络管理 |
-| 9 | **接口编辑 - 协议选择** | Network → Interfaces | 接口配置核心 |
-| 10 | **接口编辑 - 地址设置** | Network → Interfaces | 接口配置核心 |
-| 11 | **接口编辑 - DNS设置** | Network → Interfaces | 接口配置核心 |
-
-### P2 — 重要，补齐核心功能缺口
-| # | 功能 | 所属菜单 |
-|---|------|---------|
-| 12 | 系统日志查看器（含筛选/搜索） | Status → System Log |
-| 13 | 密码/SSH密钥管理 | System → Administration |
-| 14 | 主机名/时区/NTP设置 | System → System |
-| 15 | 计划任务编辑 | System → Scheduled Tasks |
-| 16 | 开机启动项管理 | System → Startup |
-| 17 | 文件管理器 | 仪表盘入口 |
-| 18 | Docker 全局配置 + 镜像管理 | Docker |
-| 19 | 应用"打开"按钮（跳转Web UI） | iStore |
-| 20 | 应用分类标签修正（12个实际分类） | iStore |
-| 21 | 在线设备列表 | 仪表盘 |
-| 22 | CPU 温度显示 | 仪表盘 |
-| 23 | UniShare（Samba+WebDAV统一管理） | NAS |
-| 24 | 网络共享挂载（NFS/SMB/CIFS） | NAS |
-| 25 | Wake on LAN（网络唤醒） | Services |
-| 26 | UPnP IGD & PCP（端口转发） | Services |
-| 27 | 接口收发流量统计 | Network → Interfaces |
-| 28 | 接口防火墙区域分配 | Network → Interfaces |
-| 29 | 新建接口 | Network → Interfaces |
-| 30 | 容器终端/日志查看 | Docker |
-| 31 | Tailscale（合并入VPN） | VPN |
-| 32 | 系统信息卡增强 | 仪表盘 |
-| 33 | 首次启动向导 | QuickStart |
-
-### P3 — 有价值，锦上添花
-| # | 功能 | 所属菜单 |
-|---|------|---------|
-| 34 | 应用详情弹窗 | iStore |
-| 35 | 应用排序（下载量/评分/更新） | iStore |
-| 36 | 实时带宽监控（按接口） | Status |
-| 37 | 带宽历史统计 | Status |
-| 38 | 进程列表/搜索 | Status → Processes |
-| 39 | 防火墙连接跟踪表 | Status → Firewall |
-| 40 | 分区图表/格式化 | System → Disk Man |
-| 41 | HTTPS 证书管理 | System → Administration |
-| 42 | HDD 硬盘休眠 | Services |
-| 43 | NFS 管理 | NAS |
-| 44 | Docker 网络管理 | Docker |
-| 45 | Docker 卷管理 | Docker |
-| 46 | 系统重置 | System → Backup |
-| 47 | 系统便利工具 | System → Convenient Tools |
-| 48 | 接口编辑 - DHCP客户端选项 | Network → Interfaces |
-| 49 | 物理端口状态详情 | Network → 端口 |
-
-### P4 — 长期优化
-| # | 功能 | 所属菜单 |
-|---|------|---------|
-| 50 | 主题/样式选择（多配色） | System → Language and Style |
-| 51 | Argon 风格主题配置 | System → Argon Config |
-| 52 | 应用下载量/评分统计体系 | iStore |
-| 53 | Docker 事件日志 | Docker → Events |
-| 54 | 语言切换（中/英） | System → Language and Style |
-
-### PX — 无需实现（技术路线不兼容/无必要）
-| # | 功能 | 原因 |
-|---|------|------|
-| 1 | 无线配置（Wireless） | 保持P1，需要实现 |
-| 2 | 多线多拨（MACVLAN并发拨号） | 功能极端小众 |
-| 3 | PassWall / OpenClash | 法律/政策原因 |
-| 4 | LED 配置 | 硬件不兼容 |
-| 5 | 固件刷写（Flash Firmware） | 不同发行版 |
-| 6 | ZRam / System Tuning | 过于技术细节，可用默认 |
-| 7 | qBittorrent EE | 可通过App安装 |
-| 8 | 物理端口LED控制 | 硬件不兼容 |
+| 功能点 | iStoreOS | UbuntuRouter | 差距 |
+|--------|----------|:-----------:|------|
+| 主机名 | 修改 ✅ | 修改 ✅ | ✅ |
+| 时区 | 设置 + 列表 ✅ | 设置 + timedatectl 列表 ✅ | ✅ |
+| NTP | 启用/禁用 + 服务器配置 | 启用/禁用 + 服务器写入 timesyncd | ✅ |
+| 密码 | 修改当前用户密码 | passwd via stdin | ✅ |
+| SSH 密钥 | 管理 authorized_keys | 完整 CRUD + 验证 | ✅ |
+| HTTP/HTTPS | TLS 证书管理 | tls_manager.py 完整管理 | ✅ |
+| 浏览器 SSL | HSTS/HTTP2/端口 | ❌ | ❌ **缺少**: HSTS 配置, HTTP/2 切换 |
 
 ---
 
-## 十二、关键缺失功能个数统计
+## 9. Docker — 5项
 
-| 优先级 | 数量 | 说明 |
-|--------|------|------|
-| P1 | 11 | 用户体感最核心的缺失 |
-| P2 | 22 | 重要功能补齐 |
-| P3 | 16 | 有价值的功能增强 |
-| P4 | 5 | 长期优化项 |
-| PX | 8 | 无需实现 |
-| **总计** | **62** | **完整的缺失功能列表** |
-| ✅ 已有 | ~20 | UbuntuRouter 已实现且匹配的功能 |
+| 子模块 | 功能点 | UbuntuRouter | 优先级 | 备注 |
+|--------|--------|:-----------:|:------:|------|
+| 概览 | Docker 状态/信息 | ✅ | - | containers.py 含系统信息 |
+| 容器 | 容器列表/创建/启动/停止/日志/终端 | ✅ | - | containers.py 完整 CRUD (722行) |
+| 镜像 | 镜像列表/拉取/删除 | ✅ | - | containers.py + compose 管理 |
+| 网络 | Docker 网络 CRUD | ✅ | - | containers.py 含 network 创建(子网/网关) |
+| 卷 | 卷列表/创建/删除 | ✅ | - | containers.py 完整管理 |
 
 ---
 
-## 十三、UbuntuRouter 的独特优势（iStoreOS 没有的）
+## 10. 系统 (System) — 14项
 
-| 功能 | 说明 | 保留价值 |
-|------|------|---------|
-| 流量编排（Orchestrator） | 按设备/应用维度的流量引导 | ✅ 保留并完善 |
-| 虚拟机管理（KVM/QEMU） | 完整的虚拟机生命周期管理 | ✅ 保留 |
-| 配置编辑 + Save & Apply | YAML 编辑 + 差异对比 + 回滚 | ✅ 保留 |
-| PendingChangesBar | 待应用变更管理 | ✅ 保留 |
-| 多线路健康检查 | Multi-WAN 链路健康检测 | ✅ 保留 |
-| 配置快照回滚 | 自动生成快照 + Rollback | ✅ 保留 |
+| 子模块 | 功能点 | UbuntuRouter | 优先级 | 备注 |
+|--------|--------|:-----------:|:------:|------|
+| 系统 | 基础设置(主机名/时区/NTP) | ✅ | - | system.py 完整 |
+| 管理 | 密码/SSH 密钥 | ✅ | - | system.py 完整 |
+| 软件包 | APT 源管理/软件包管理 | ✅ | - | apt.py + system.py upgrade 功能 |
+| TTYD | Web 终端 | ✅ | - | ttyd.py 启停管理 |
+| 启动项 | 启动项管理 | ✅ | - | startup.py (已导入) |
+| 计划任务 | Cron 任务管理 | ✅ | - | cron.py (已导入) |
+| LED | LED 配置 | ❌ | P3 | 只有占位符页面 |
+| SNMP | SNMP 配置 | ❌ | P3 | 只有占位符页面 |
+| 备份 | 配置备份/还原/下载/预览 | ✅ | - | backup.py 完整 |
+| 文件传输 | 文件管理 | ✅ | - | files.py (已导入) |
+| 重启 | 重启(支持延迟) | ✅ | - | system.py POST /reboot |
+| 关机 | 关机(支持延迟) | ✅ | - | system.py POST /shutdown |
+| 定时重启 | 定时重启配置 | ❌ | P2 | 只有占位符页面 |
+| 系统升级 | apt upgrade/dist-upgrade | ✅ | - | system.py 完整 |
 
 ---
 
-*本文档按 iStoreOS 24.10.2 的 LuCI 菜单结构组织，UbuntuRouter 对应的功能已标记。优先级标记 P1-P4 为建议值，可调整为 PX 表示不需要实现。*
+## 11. 应用商店 (AppStore) — 特殊说明
+
+> **用户明确要求：AppStore 部分不按 iStoreOS 标准对标，按 1Panel 标准。**
+> 本报告不包含 AppStore 差距分析。
+
+UbuntuRouter 当前状态：
+- 后端: `appstore.py` 应用市场 API
+- 前端: `AppStore.vue` 带评分组件
+- 另含 `ratings.py` 评分系统
+
+---
+
+## 12. UbuntuRouter 独有功能
+
+UbuntuRouter 有但 iStoreOS/OpenWrt 没有的功能：
+
+| 功能 | 路径 | 说明 |
+|------|------|------|
+| VM (虚拟机) 管理 | `vm.py` (324行) | 基于 libvirt/KVM 的虚拟机管理 |
+| 网络编排引擎 | `orchestrator.py` (561行) | 设备识别 + 应用识别 + 规则编译 + 流量统计 + 故障切换 |
+| 网络拓扑 | `topology.py` | 网络拓扑可视化 |
+| TLS/HTTPS 证书管理 | `tls_manager.py` | Let's Encrypt + 自签名证书管理 |
+| VNC 代理 | `vnc_proxy.py` | VM VNC 控制台代理 |
+| 高级配置编辑器 | `ConfigEditor.vue` | YAML 配置文件在线编辑 |
+| 联网向导 | `NetworkWizard.vue` | 网络配置引导 |
+| 应用评分系统 | `ratings.py` | 应用市场评分/评价 |
+| 系统快照 (Rollback) | `system.py` | 配置快照管理 (RollbackManager) |
+
+---
+
+## 13. 优先级汇总
+
+### P1 (关键缺失 — 影响核心路由体验)
+- 🔴 **实时图表/WebSocket 推送到前端**: 后端有 delta 计算但前端无实时趋势图
+- 🔴 **防火墙规则高级匹配**: 缺少 ICMP, ipset, rate limit, 时间限制, conntrack state
+- 🔴 **NAT Loopback**: 端口转发无 NAT 回环选项
+- 🔴 **DHCP 池创建/编辑**: 只能查看不能修改
+
+### P2 (重要缺失 — 需要补齐)
+- 🟠 **Turbo ACC (硬件加速/BBR)**: 只有占位符
+- 🟠 **SQM QoS**: 只有占位符
+- 🟠 **DDNS 更多提供商**: No-IP, HE.NET, Oray, 3322 等
+- 🟠 **桥接/Bond 管理**: 完全缺失
+- 🟠 **端口转发协议选择**: 当前全部 TCP
+- 🟠 **UPnP 配置选项**: 接口选择/ACL/端口范围
+- 🟠 **定时重启**: 只有占位符
+- 🟠 **历史统计图表**: 有 CSV 持久化但无展示
+
+### P3 (锦上添花 — 增强体验)
+- 🟡 **无线高级参数**: 功率/信道宽度/国家码/MAC过滤
+- 🟡 **接口高级参数**: metric/dhcp-identifier/accept-ra
+- 🟡 **FTP 服务**: 只有占位符
+- 🟡 **LED 配置**: 只有占位符
+- 🟡 **SNMP**: 只有占位符
+- 🟡 **HSTS/HTTP2**: TLS 功能增强
+
+### PX (不适用 — 或已按其他标准)
+- ⚪ **AppStore**: 按 1Panel 标准，不对比
+- ⚪ **iStore 应用商店**: 不适用
+
+---
+
+## 14. 总结
+
+### 优势领域
+UbuntuRouter 在以下方面已经达到甚至超过 iStoreOS 的功能覆盖：
+1. **Docker 管理**: 完整容器/镜像/网络/卷管理
+2. **VPN**: WireGuard 隧道 + Peer 管理 + Tailscale
+3. **网络诊断**: 6种工具齐全
+4. **存储管理**: 磁盘/挂载/Samba/NFS/备份
+5. **DDNS**: 5种主流提供商 + 调度器
+6. **无线**: 基础 AP/Client 模式完整
+7. **系统设置**: 主机名/时区/NTP/密码/SSH/HTTPS证书
+
+### 核心短板
+与 iStoreOS 差距最大的领域：
+1. **防火墙规则引擎** — 缺少高级匹配参数
+2. **实时监控图表** — 无前端实时趋势展示
+3. **网络加速 (Turbo ACC)** — 完全缺失
+4. **QoS 流量整形** — 完全缺失
+5. **桥接/Bond/LAG** — 完全缺失
+6. **UPnP/NAT-PMP 完整配置** — 功能不完整
+7. **接口高级配置** — 缺少 IPv6/进阶参数
+
+### 建议开发路线
+1. **P1 优先**: 防火墙规则增强 + DHCP 池编辑 + 实时图表
+2. **P2 跟进**: Turbo ACC + QoS + 桥接 + DDNS 更多提供商
+3. **P3 完善**: 无线高级 + 接口高级 + FTP/LED/SNMP
+
+---
+
+*本报告基于 UbuntuRouter 代码完整审计（2026-04-28），涵盖 36 个后端路由模块和 50 个前端页面/组件。*

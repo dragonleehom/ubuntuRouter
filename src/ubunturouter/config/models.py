@@ -276,16 +276,61 @@ class StaticLease(BaseModel):
         return v
 
 
-class DHCPPoolConfig(BaseModel):
-    """DHCP 地址池"""
-    interface: str
+class DHCPPool(BaseModel):
+    """单个 DHCP 地址池"""
+    id: str = ""
+    name: str = ""
     enabled: bool = True
     range_start: str = "192.168.21.50"
     range_end: str = "192.168.21.200"
+    subnet_mask: str = "255.255.255.0"
     gateway: str = "192.168.21.1"
-    dns: List[str] = ["192.168.21.1"]
-    lease_time: int = 86400
+    dns_servers: List[str] = ["192.168.21.1"]
+    lease_time: int = 86400  # seconds
+    domain: Optional[str] = None
+
+    @field_validator('range_start', 'range_end', 'gateway')
+    @classmethod
+    def validate_ip(cls, v):
+        parts = v.split('.')
+        if len(parts) != 4 or not all(
+            p.isdigit() and 0 <= int(p) <= 255 for p in parts
+        ):
+            raise ValueError(f'IP 地址格式错误: {v}')
+        return v
+
+    @field_validator('subnet_mask')
+    @classmethod
+    def validate_netmask(cls, v):
+        parts = v.split('.')
+        if len(parts) != 4 or not all(
+            p.isdigit() and 0 <= int(p) <= 255 for p in parts
+        ):
+            raise ValueError(f'子网掩码格式错误: {v}')
+        # 验证连续1+连续0
+        binary = ''.join(f'{int(p):08b}' for p in parts)
+        if '01' in binary.rstrip('0'):
+            raise ValueError(f'子网掩码不合法: {v}')
+        return v
+
+    @field_validator('dns_servers')
+    @classmethod
+    def validate_dns_list(cls, v):
+        for dns in v:
+            parts = dns.split('.')
+            if len(parts) != 4 or not all(
+                p.isdigit() and 0 <= int(p) <= 255 for p in parts
+            ):
+                raise ValueError(f'DNS 地址格式错误: {dns}')
+        return v
+
+
+class DHCPPoolConfig(BaseModel):
+    """DHCP 配置（支持多池）"""
+    interface: str
+    enabled: bool = True
     domain: Optional[str] = "lan"
+    pools: List[DHCPPool] = []
     static_leases: List[StaticLease] = []
 
 

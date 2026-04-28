@@ -1,9 +1,11 @@
-"""DHCP API 路由 — 租约 + 绑定 + 状态"""
+"""DHCP API 路由 — 租约 + 绑定 + 池 CRUD + 状态"""
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from ..deps import require_auth
 from ...dhcp import DnsmasqManager
+from ...config.models import DHCPPool
+from ...engine.engine import ConfigEngine
 from pathlib import Path
 
 router = APIRouter()
@@ -206,7 +208,7 @@ async def delete_dns_rewrite(body: DnsRewriteDelete, auth=Depends(require_auth))
 
 @router.get("/pool")
 async def get_dhcp_pool(auth=Depends(require_auth)):
-    """获取 DHCP 池配置"""
+    """获取 DHCP 池配置（兼容旧版，返回第一个池）"""
     pool = dm.get_pool_info()
     if not pool:
         return {"configured": False}
@@ -220,6 +222,124 @@ async def get_dhcp_pool(auth=Depends(require_auth)):
         "domain": pool.domain,
         "active_leases": pool.active_leases,
     }
+
+
+# ─── 多池 CRUD ────────────────────────────────────────────
+
+class PoolCreateRequest(BaseModel):
+    """创建/更新 DHCP 池请求"""
+    name: str = ""
+    enabled: bool = True
+    range_start: str = Field(..., pattern=r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
+    range_end: str = Field(..., pattern=r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
+    subnet_mask: str = Field(default="255.255.255.0", pattern=r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
+    gateway: str = Field(..., pattern=r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
+    dns_servers: List[str] = ["192.168.21.1"]
+    lease_time: int = 86400
+    domain: str = ""
+
+
+@router.get("/pools")
+async def list_pools(auth=Depends(require_auth)):
+    """列出所有 DHCP 池"""
+    pools = dm.get_pools()
+    return {"pools": pools, "total": len(pools)}
+
+
+@router.post("/pool")
+async def add_pool(body: PoolCreateRequest, auth=Depends(require_auth)):
+    """添加 DHCP 池"""
+    try:
+        engine = ConfigEngine()
+        config = engine.load()
+        if not config.dhcp:
+            raise HTTPException(status_code=400, detail="DHCP 未配置，请先配置接口")
+
+        import uuid
+        pool_id = str(uuid.uuid4())[:8]
+        new_pool = DHCPPool(
+            id=pool_id,
+            name=body.name or f"Pool {len(config.dhcp.pools) + 1}",
+            enabled=body.enabled,
+            range_start=body.range_start,
+            range_end=body.range_end,
+            subnet_mask=body.subnet_mask,
+            gateway=body.gateway,
+            dns_servers=body.dns_servers or ["192.168.21.1"],
+            lease_time=body.lease_time,
+            domain=body.domain or None,
+        )
+        config.dhcp.pools.append(new_pool)
+        result = engine.apply(config)
+        if not result.success:
+            raise HTTPException(status_code=500, detail=result.message)
+        return {"success": True, "message": "DHCP 池已添加", "pool_id": pool_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/pool/{pool_id}")
+async def update_pool(pool_id: str, body: PoolCreateRequest, auth=Depends(require_auth)):
+    """编辑 DHCP 池"""
+    try:
+        engine = ConfigEngine()
+        config = engine.load()
+        if not config.dhcp:
+            raise HTTPException(status_code=400, detail="DHCP 未配置")
+
+        found = False
+        for pool in config.dhcp.pools:
+            if pool.id == pool_id:
+                pool.name = body.name or pool.name
+                pool.enabled = body.enabled
+                pool.range_start = body.range_start
+                pool.range_end = body.range_end
+                pool.subnet_mask = body.subnet_mask
+                pool.gateway = body.gateway
+                pool.dns_servers = body.dns_servers or ["192.168.21.1"]
+                pool.lease_time = body.lease_time
+                pool.domain = body.domain or None
+                found = True
+                break
+
+        if not found:
+            raise HTTPException(status_code=404, detail=f"DHCP 池 {pool_id} 未找到")
+
+        result = engine.apply(config)
+        if not result.success:
+            raise HTTPException(status_code=500, detail=result.message)
+        return {"success": True, "message": "DHCP 池已更新"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/pool/{pool_id}")
+async def delete_pool(pool_id: str, auth=Depends(require_auth)):
+    """删除 DHCP 池"""
+    try:
+        engine = ConfigEngine()
+        config = engine.load()
+        if not config.dhcp:
+            raise HTTPException(status_code=400, detail="DHCP 未配置")
+
+        original_len = len(config.dhcp.pools)
+        config.dhcp.pools = [p for p in config.dhcp.pools if p.id != pool_id]
+
+        if len(config.dhcp.pools) == original_len:
+            raise HTTPException(status_code=404, detail=f"DHCP 池 {pool_id} 未找到")
+
+        result = engine.apply(config)
+        if not result.success:
+            raise HTTPException(status_code=500, detail=result.message)
+        return {"success": True, "message": "DHCP 池已删除"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ─── DNS ───────────────────────────────────────────────────

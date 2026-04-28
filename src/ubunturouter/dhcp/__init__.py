@@ -7,6 +7,9 @@ from typing import List, Optional, Dict
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from ..config.models import UbunturouterConfig, DHCPPool
+from ..config.serializer import ConfigSerializer
+
 
 LEASES_FILE = "/var/lib/misc/dnsmasq.leases"
 DEFAULT_LEASE_PATH = "/var/lib/misc/dnsmasq.leases"
@@ -101,42 +104,72 @@ class DnsmasqManager:
         return len(active)
 
     def get_pool_info(self) -> Optional[DHCPPoolInfo]:
-        """从当前配置读取 DHCP 池信息（简化版，从 dnsmasq 配置文件解析）"""
-        if not self.config_path.exists():
+        """从核心配置读取 DHCP 池信息"""
+        config_path = Path("/etc/ubunturouter/config.yaml")
+        if not config_path.exists():
             return None
         try:
-            content = self.config_path.read_text(encoding='utf-8')
-            info = DHCPPoolInfo(
-                interface="",
-                range_start="",
-                range_end="",
-                gateway="",
-                lease_time=12,
+            config = ConfigSerializer.from_yaml_file(config_path)
+            if not config.dhcp:
+                return None
+            dhcp = config.dhcp
+            pools = dhcp.pools or []
+            # 返回第一个启用的池或第一个池
+            first_pool = None
+            for p in pools:
+                if p.enabled:
+                    first_pool = p
+                    break
+            if not first_pool and pools:
+                first_pool = pools[0]
+            if not first_pool:
+                return DHCPPoolInfo(
+                    interface=dhcp.interface,
+                    range_start="",
+                    range_end="",
+                    gateway="",
+                    lease_time=12,
+                    domain=dhcp.domain or "",
+                    active_leases=self.get_active_leases_count(),
+                )
+            return DHCPPoolInfo(
+                interface=dhcp.interface,
+                range_start=first_pool.range_start,
+                range_end=first_pool.range_end,
+                gateway=first_pool.gateway,
+                lease_time=max(1, first_pool.lease_time // 3600),
+                domain=first_pool.domain or dhcp.domain or "",
                 active_leases=self.get_active_leases_count(),
             )
-            for line in content.split('\n'):
-                line = line.strip()
-                if line.startswith('interface='):
-                    info.interface = line.split('=', 1)[1].strip()
-                elif line.startswith('dhcp-range='):
-                    range_parts = line.split('=', 1)[1].split(',')
-                    if len(range_parts) >= 2:
-                        info.range_start = range_parts[0]
-                        info.range_end = range_parts[1]
-                    if len(range_parts) >= 3:
-                        # 可能是 lease time
-                        time_str = range_parts[2].lower().replace('h', '')
-                        try:
-                            info.lease_time = int(time_str)
-                        except ValueError:
-                            pass
-                elif line.startswith('dhcp-option=3,'):
-                    info.gateway = line.split(',', 1)[1].strip()
-                elif line.startswith('domain='):
-                    info.domain = line.split('=', 1)[1].strip()
-            return info
         except Exception:
             return None
+
+    def get_pools(self) -> List[Dict]:
+        """获取所有 DHCP 池配置（从核心配置读取）"""
+        config_path = Path("/etc/ubunturouter/config.yaml")
+        if not config_path.exists():
+            return []
+        try:
+            config = ConfigSerializer.from_yaml_file(config_path)
+            if not config.dhcp:
+                return []
+            return [
+                {
+                    "id": p.id or f"pool_{i}",
+                    "name": p.name or f"Pool {i+1}",
+                    "enabled": p.enabled,
+                    "range_start": p.range_start,
+                    "range_end": p.range_end,
+                    "subnet_mask": p.subnet_mask,
+                    "gateway": p.gateway,
+                    "dns_servers": p.dns_servers,
+                    "lease_time": p.lease_time,
+                    "domain": p.domain or "",
+                }
+                for i, p in enumerate(config.dhcp.pools)
+            ]
+        except Exception:
+            return []
 
     def release_lease(self, mac: str) -> bool:
         """释放指定 MAC 的 DHCP 租约（通过 DHCPRELEASE）"""
