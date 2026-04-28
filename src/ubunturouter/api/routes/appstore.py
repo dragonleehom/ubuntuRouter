@@ -1,5 +1,8 @@
 """应用市场 API — 浏览/安装/更新/卸载/仓库管理"""
 
+import json
+import os
+
 from fastapi import APIRouter, HTTPException, Query, Body, Depends
 from typing import Optional
 
@@ -12,6 +15,39 @@ from ...appstore import (
 )
 
 router = APIRouter()
+
+RATINGS_FILE = "/opt/ubunturouter/data/ratings.json"
+
+
+def _load_ratings() -> dict:
+    """加载评分数据"""
+    if not os.path.exists(RATINGS_FILE):
+        return {}
+    try:
+        with open(RATINGS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def _enrich_with_ratings(apps_dict: dict) -> dict:
+    """给应用列表添加评分信息"""
+    ratings = _load_ratings()
+    result = {}
+    for app_id, m in apps_dict.items():
+        app_data = ratings.get(app_id, {})
+        if app_data:
+            values = [e.get("rating", 0) for e in app_data.values() if 1 <= e.get("rating", 0) <= 5]
+            count = len(values)
+            avg = round(sum(values) / count, 1) if count > 0 else None
+        else:
+            count = 0
+            avg = None
+        # 将评分信息附加到 manifest 对象上
+        m._rating_average = avg
+        m._rating_count = count
+        result[app_id] = m
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -38,6 +74,9 @@ async def list_apps(
         if app_id in installed:
             manifest.installed = True
             manifest.installed_version = installed[app_id]
+
+    # 加载评分信息
+    apps = _enrich_with_ratings(apps)
 
     # 分类筛选
     if category:
@@ -70,6 +109,8 @@ async def list_apps(
                 "homepage": m.homepage,
                 "installed": m.installed,
                 "installed_version": m.installed_version,
+                "rating_average": getattr(m, '_rating_average', None),
+                "rating_count": getattr(m, '_rating_count', 0),
             }
             for app_id, m in page_items
         ],
@@ -93,25 +134,31 @@ async def get_app_detail(app_id: str, auth=Depends(require_auth)):
     manifest.installed = app_id in installed
     manifest.installed_version = installed.get(app_id, "")
 
+    # 加载评分信息
+    enriched = _enrich_with_ratings({app_id: manifest})
+    m = enriched.get(app_id, manifest)
+
     return {
         "app": {
-            "id": manifest.id,
-            "name": manifest.name,
-            "version": manifest.version,
-            "description": manifest.description,
-            "category": manifest.category,
-            "author": manifest.author,
-            "icon": manifest.icon,
-            "screenshots": manifest.screenshots,
-            "tags": manifest.tags,
-            "homepage": manifest.homepage,
-            "env_vars": manifest.env_vars,
-            "ports": manifest.ports,
-            "volumes": manifest.volumes,
-            "requires": manifest.requires,
-            "installed": manifest.installed,
-            "installed_version": manifest.installed_version,
-            "repo": manifest.repo,
+            "id": m.id,
+            "name": m.name,
+            "version": m.version,
+            "description": m.description,
+            "category": m.category,
+            "author": m.author,
+            "icon": m.icon,
+            "screenshots": m.screenshots,
+            "tags": m.tags,
+            "homepage": m.homepage,
+            "env_vars": m.env_vars,
+            "ports": m.ports,
+            "volumes": m.volumes,
+            "requires": m.requires,
+            "installed": m.installed,
+            "installed_version": m.installed_version,
+            "repo": m.repo,
+            "rating_average": getattr(m, '_rating_average', None),
+            "rating_count": getattr(m, '_rating_count', 0),
         }
     }
 

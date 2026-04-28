@@ -27,6 +27,7 @@ from .routes import upnp as upnp_routes
 from .routes import nfs as nfs_routes
 from .routes import tls_manager as tls_manager_routes
 from .routes import factory_reset as factory_reset_routes
+from .routes import ratings as ratings_routes
 from .ws import dashboard as ws_dashboard
 from .auth import jwt as jwt_auth
 from .tls import init_https
@@ -84,6 +85,7 @@ def create_app() -> FastAPI:
     app.include_router(nfs_routes.router, prefix="/api/v1/nfs", tags=["NFS"])
     app.include_router(tls_manager_routes.router, prefix="/api/v1/tls", tags=["TLS"])
     app.include_router(factory_reset_routes.router, prefix="/api/v1/system", tags=["System"])
+    app.include_router(ratings_routes.router, prefix="/api/v1/ratings", tags=["Ratings"])
 
     # WebSocket
     app.add_api_websocket_route("/api/v1/ws/dashboard", ws_dashboard.websocket_endpoint)

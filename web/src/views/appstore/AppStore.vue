@@ -84,6 +84,11 @@
               <div class="app-desc">{{ app.description || app.id }}</div>
               <div class="app-meta">
                 <el-tag size="small" :type="catTagType(app.category)" class="app-cat">{{ app.category }}</el-tag>
+                <div v-if="app.rating_count > 0" class="app-rating">
+                  <el-icon :size="12" style="color:#f7ba2a"><StarFilled /></el-icon>
+                  <span class="rating-num">{{ app.rating_average }}</span>
+                  <span class="rating-count">({{ app.rating_count }})</span>
+                </div>
               </div>
               <div class="app-footer">
                 <el-tag v-if="app.installed" size="small" type="success" effect="dark" class="installed-tag">已安装</el-tag>
@@ -307,6 +312,57 @@
           </el-table>
         </div>
 
+        <!-- 评分区域 -->
+        <el-divider />
+        <div class="config-section rating-section">
+          <h4>应用评分</h4>
+          <div class="rating-overview" v-if="detailRating">
+            <div class="rating-stats">
+              <div class="rating-average">
+                <span class="big-score">{{ detailRating.average || '-' }}</span>
+                <RatingStars v-if="detailRating.average" :model-value="Math.round(detailRating.average)" readonly size="small" />
+              </div>
+              <span class="rating-count-text">{{ detailRating.count }} 人评分</span>
+            </div>
+            <div class="rating-distribution" v-if="detailRating.count > 0">
+              <div v-for="star in 5" :key="star" class="dist-row">
+                <span class="dist-label">{{ star }}星</span>
+                <el-progress
+                  :percentage="detailRating.distribution[star] / detailRating.count * 100"
+                  :show-text="false"
+                  :stroke-width="6"
+                  color="#f7ba2a"
+                />
+                <span class="dist-count">{{ detailRating.distribution[star] }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="my-rating" v-if="detailDialog.app.installed">
+            <template v-if="myRating !== null">
+              <span class="my-rating-label">你的评分：</span>
+              <RatingStars :model-value="myRating" readonly size="small" />
+              <el-button size="small" link type="primary" @click="showRatingSelector = true" style="margin-left:8px">修改评分</el-button>
+            </template>
+            <template v-else>
+              <div v-if="!showRatingSelector" class="no-rating">
+                <span class="my-rating-label">尚未评分</span>
+                <el-button size="small" type="primary" link @click="showRatingSelector = true">给个评分</el-button>
+              </div>
+            </template>
+            <div v-if="showRatingSelector" class="rating-selector">
+              <RatingStars v-model="newRating" :size="'large'" />
+              <el-button
+                size="small"
+                type="primary"
+                @click="submitRating"
+                :loading="submittingRating"
+                style="margin-left:12px"
+              >提交</el-button>
+              <el-button size="small" @click="cancelRating">取消</el-button>
+            </div>
+          </div>
+        </div>
+
         <div class="detail-actions">
           <el-button v-if="detailDialog.app.installed" type="danger" @click="uninstallApp(detailDialog.app)">卸载</el-button>
           <el-button v-else type="primary" size="large" @click="doInstallFromDetail" :loading="installing">安装</el-button>
@@ -368,8 +424,9 @@
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { api } from '@/stores'
-import { Search, Refresh, Plus, Setting, Monitor, Delete } from '@element-plus/icons-vue'
+import { Search, Refresh, Plus, Setting, Monitor, Delete, StarFilled, Star } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import RatingStars from './RatingStars.vue'
 
 const loading = ref(false)
 const apps = ref([])
@@ -390,6 +447,13 @@ const detailDialog = ref({ visible: false, app: null })
 const iconErrors = ref({})
 const installForm = ref({ env: {}, customEnv: [], customVolumes: [], customPorts: [] })
 const installing = ref(false)
+
+// ─── 评分状态 ──────────────────────────
+const detailRating = ref(null)
+const myRating = ref(null)
+const showRatingSelector = ref(false)
+const newRating = ref(0)
+const submittingRating = ref(false)
 
 function onIconLoad(event) {
   const img = event.target
@@ -570,6 +634,8 @@ async function viewDetail(app) {
         if (ev.default) installForm.value.env[ev.name] = ev.default
       }
     }
+    // 获取评分信息
+    await fetchRatingInfo(app.id)
   } catch (e) {
     ElMessage.error('获取应用详情失败')
   }
@@ -618,6 +684,46 @@ async function updateApp(app) {
   } catch (e) {
     if (e !== 'cancel') ElMessage.error(e.response?.data?.detail || '更新失败')
   }
+}
+
+// ── 评分 API ──────────────────────────────
+async function fetchRatingInfo(appId) {
+  try {
+    const res = await api.get(`/ratings/${appId}`)
+    detailRating.value = res.data
+    myRating.value = res.data.user_rating || null
+    showRatingSelector.value = false
+    newRating.value = 0
+  } catch (e) {
+    detailRating.value = null
+    myRating.value = null
+  }
+}
+
+async function submitRating() {
+  if (!newRating.value || newRating.value < 1 || newRating.value > 5) {
+    ElMessage.warning('请选择 1-5 星评分')
+    return
+  }
+  submittingRating.value = true
+  try {
+    const res = await api.post(`/ratings/${detailDialog.value.app.id}`, {
+      rating: newRating.value,
+    })
+    ElMessage.success(res.data.message || '评分成功')
+    // 刷新评分信息
+    await fetchRatingInfo(detailDialog.value.app.id)
+    // 刷新列表以更新卡片显示
+    await fetchApps()
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || '评分提交失败')
+  }
+  submittingRating.value = false
+}
+
+function cancelRating() {
+  showRatingSelector.value = false
+  newRating.value = 0
 }
 
 async function uninstallApp(app) {
@@ -856,4 +962,33 @@ onMounted(async () => {
 
 /* 安装对话框分隔线 */
 .el-divider { margin: 16px 0; }
+
+/* 评分区域 */
+.rating-section { margin: 0; }
+.rating-overview { margin-bottom: 16px; }
+.rating-stats { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.rating-average { display: flex; align-items: center; gap: 8px; }
+.big-score { font-size: 28px; font-weight: 700; color: #f7ba2a; line-height: 1; }
+.rating-count-text { font-size: 13px; color: #888; }
+.rating-distribution { max-width: 300px; }
+.dist-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.dist-label { font-size: 12px; color: #999; min-width: 28px; }
+.dist-count { font-size: 12px; color: #888; min-width: 20px; text-align: right; }
+.dist-row .el-progress { flex: 1; }
+.my-rating { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); }
+.my-rating-label { font-size: 13px; color: #aaa; margin-right: 4px; }
+.no-rating { display: flex; align-items: center; gap: 8px; }
+.rating-selector { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+
+/* 应用卡片评分 */
+.app-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  font-size: 11px;
+  color: #888;
+}
+.rating-num { color: #f7ba2a; font-weight: 600; }
+.rating-count { color: #999; }
 </style>
