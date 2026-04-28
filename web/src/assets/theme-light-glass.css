@@ -1,536 +1,535 @@
-/*
- * UbuntuRouter — Light Glass Theme
- * 风格: 浅色毛玻璃 · 圆润卡片 · 深蓝品牌色
- * 参考: 浅色毛玻璃管理面板设计
- *
- * 色板:
- *   背景渐变:    #e8ebf5 → #d1d9f0
- *   品牌色:      #0052FF
- *   侧栏:        #121212 (深色)
- *   卡片:        rgba(255,255,255,0.65) 毛玻璃
- *   成功:        #4ADE80
- *   警告:        #FFA500
- *   危险:        #FF4D8D
- *   文字主:      #1E293B
- *   文字次:      #64748B
- *   圆角:        20px (大圆角)
- *   阴影:        0 8px 32px rgba(31,38,135,0.07)
- */
-
 /* ============================================================
-   1. GLOBAL RESET & BASE
+   UbuntuRouter — Light Glass Theme
+   风格: 浅色毛玻璃 · 圆润卡片 · 深蓝品牌色
+   参考: 浅色毛玻璃管理面板设计
    ============================================================ */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: #c0c4cc transparent;
-}
-
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #c0c4cc; border-radius: 3px; }
-
-html, body {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: linear-gradient(135deg, #e8ebf5 0%, #d1d9f0 100%);
-  color: #1E293B;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* ============================================================
-   2. LAYOUT OVERRIDE
-   ============================================================ */
-.layout-container {
-  background: transparent !important;
-}
-
-/* Sidebar — 深色侧栏，右边大圆角 */
-.sidebar {
-  background-color: #121212 !important;
-  border-radius: 0 24px 24px 0 !important;
-  border-right: none !important;
-  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15) !important;
-}
-
-.sidebar-header {
-  border-bottom: 1px solid rgba(255,255,255,0.06) !important;
-  padding: 24px 16px !important;
-  justify-content: center !important;
-}
-
-.brand {
-  font-size: 16px !important;
-  font-weight: 700 !important;
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-  letter-spacing: 0.02em;
-}
-
-/* Topbar — 透明顶栏 */
-.topbar {
-  background: rgba(255,255,255,0.4) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255,255,255,0.5) !important;
-  height: 54px !important;
-}
-
-.main-content {
-  background: transparent !important;
-  padding: 24px !important;
-}
-
-/* ============================================================
-   3. EL-MENU — 深色侧栏菜单
-   ============================================================ */
-.el-menu {
-  border-right: none !important;
-  background: transparent !important;
-}
-
-/* 一级菜单项 */
-.el-menu-item {
-  color: rgba(255,255,255,0.5) !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
-  height: 44px !important;
-  line-height: 44px !important;
-  margin: 2px 10px !important;
-  border-radius: 12px !important;
-  padding: 0 12px !important;
-  transition: all 0.2s ease !important;
-}
-
-.el-menu-item:hover {
-  background: rgba(255,255,255,0.06) !important;
-  color: rgba(255,255,255,0.8) !important;
-}
-
-.el-menu-item.is-active {
-  background: #0052FF !important;
-  color: #ffffff !important;
-  box-shadow: 0 4px 12px rgba(0, 82, 255, 0.3);
-}
-
-.el-menu-item .el-icon {
-  color: rgba(255,255,255,0.4) !important;
-  font-size: 18px !important;
-  margin-right: 10px !important;
-}
-
-.el-menu-item.is-active .el-icon {
-  color: #ffffff !important;
-}
-
-/* 子菜单标题 */
-.el-sub-menu__title {
-  color: rgba(255,255,255,0.5) !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
-  height: 44px !important;
-  line-height: 44px !important;
-  margin: 2px 10px !important;
-  border-radius: 12px !important;
-  padding: 0 12px !important;
-  transition: all 0.2s ease !important;
-}
-
-.el-sub-menu__title:hover {
-  background: rgba(255,255,255,0.06) !important;
-  color: rgba(255,255,255,0.8) !important;
-}
-
-.el-sub-menu__title .el-icon {
-  color: rgba(255,255,255,0.4) !important;
-  font-size: 18px !important;
-  margin-right: 10px !important;
-}
-
-.el-sub-menu.is-active .el-sub-menu__title {
-  color: #ffffff !important;
-}
-
-.el-sub-menu.is-active .el-sub-menu__title .el-icon {
-  color: #ffffff !important;
-}
-
-/* 子菜单容器 */
-.el-sub-menu .el-menu {
-  background: transparent !important;
-}
-
-.el-sub-menu .el-menu .el-menu-item {
-  padding-left: 46px !important;
-  font-size: 12.5px !important;
-  height: 36px !important;
-  line-height: 36px !important;
-  margin: 1px 10px !important;
-}
-
-.el-sub-menu .el-sub-menu .el-menu-item {
-  padding-left: 60px !important;
-  font-size: 12px !important;
-}
-
-/* ============================================================
-   4. CARD — 毛玻璃卡片（20px 大圆角）
-   ============================================================ */
-.el-card {
-  background: rgba(255, 255, 255, 0.65) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.4) !important;
-  border-radius: 20px !important;
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07) !important;
-  transition: all 0.25s ease !important;
-}
-
-.el-card:hover {
-  box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.12) !important;
-  background: rgba(255, 255, 255, 0.75) !important;
-}
-
-.el-card__body {
-  padding: 20px !important;
-  color: #1E293B;
-}
-
-/* ============================================================
-   5. BUTTON — 圆润按钮
-   ============================================================ */
-.el-button {
-  border-radius: 12px !important;
-  font-weight: 600 !important;
-  font-size: 13px !important;
-  transition: all 0.2s ease !important;
-  border: 1px solid transparent !important;
-}
-
-.el-button--primary {
-  background-color: #0052FF !important;
-  color: #ffffff !important;
-  box-shadow: 0 4px 14px rgba(0, 82, 255, 0.25) !important;
-}
-
-.el-button--primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 82, 255, 0.35) !important;
-}
-
-.el-button--default {
-  background: rgba(255,255,255,0.5) !important;
-  color: #1E293B !important;
-  border: 1px solid rgba(0,0,0,0.06) !important;
-}
-
-.el-button--default:hover {
-  background: rgba(255,255,255,0.8) !important;
-}
-
-.el-button--danger {
-  background-color: #FF4D8D !important;
-  color: #fff !important;
-}
-
-.el-button--success {
-  background-color: #4ADE80 !important;
-  color: #fff !important;
-}
-
-.el-button--warning {
-  background-color: #FFA500 !important;
-  color: #fff !important;
-}
-
-.el-button--text {
-  color: #0052FF !important;
-}
-
-.el-button.is-disabled {
-  opacity: 0.4 !important;
-}
-
-/* ============================================================
-   6. TABLE — 浅色数据表
-   ============================================================ */
-.el-table {
-  background: rgba(255,255,255,0.4) !important;
-  color: #1E293B !important;
-  border: 1px solid rgba(255,255,255,0.6) !important;
-  border-radius: 16px !important;
-  overflow: hidden !important;
-}
-
-.el-table::before {
-  display: none !important;
-}
-
-.el-table th.el-table__cell {
-  background: rgba(255,255,255,0.5) !important;
-  color: #64748B !important;
-  font-weight: 600 !important;
-  font-size: 12px !important;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 12px 16px !important;
-  border-bottom: 1px solid rgba(0,0,0,0.04) !important;
-}
-
-.el-table td.el-table__cell {
-  background: transparent !important;
-  color: #1E293B !important;
-  padding: 10px 16px !important;
-  border-bottom: 1px solid rgba(0,0,0,0.03) !important;
-}
-
-.el-table tr:hover > td.el-table__cell {
-  background: rgba(0, 82, 255, 0.03) !important;
-}
-
-.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
-  background: rgba(255,255,255,0.3) !important;
-}
-
-.el-table__empty-text {
-  color: #94a3b8 !important;
-}
-
-/* ============================================================
-   7. FORM — 表单元素
-   ============================================================ */
-.el-input__wrapper {
-  background: rgba(255,255,255,0.6) !important;
-  border: 1px solid rgba(0,0,0,0.06) !important;
-  border-radius: 12px !important;
-  box-shadow: none !important;
-}
-
-.el-input__wrapper.is-focus {
-  border-color: #0052FF !important;
-  box-shadow: 0 0 0 3px rgba(0, 82, 255, 0.1) !important;
-}
-
-.el-input__inner {
-  color: #1E293B !important;
-}
-
-.el-input__inner::placeholder {
-  color: #94a3b8 !important;
-}
-
-/* ============================================================
-   8. TAG — 胶囊标签
-   ============================================================ */
-.el-tag {
-  border-radius: 50px !important;
-  font-weight: 600 !important;
-  font-size: 11px !important;
-  padding: 0 12px !important;
-  height: 24px !important;
-  line-height: 24px !important;
-  border: none !important;
-  text-transform: uppercase;
-}
-
-.el-tag--success {
-  background: rgba(74, 222, 128, 0.15) !important;
-  color: #16a34a !important;
-}
-
-.el-tag--danger {
-  background: rgba(255, 77, 141, 0.15) !important;
-  color: #e11d6a !important;
-}
-
-.el-tag--warning {
-  background: rgba(255, 165, 0, 0.15) !important;
-  color: #d97706 !important;
-}
-
-.el-tag--info {
-  background: rgba(100, 116, 139, 0.12) !important;
-  color: #64748B !important;
-}
-
-/* ============================================================
-   9. DIALOG / MODAL
-   ============================================================ */
-.el-dialog {
-  background: rgba(255,255,255,0.85) !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
-  border: 1px solid rgba(255,255,255,0.5) !important;
-  border-radius: 24px !important;
-  box-shadow: 0 24px 80px rgba(31, 38, 135, 0.15) !important;
-}
-
-.el-dialog__title {
-  color: #1E293B !important;
-  font-weight: 600 !important;
-}
-
-.el-dialog__header {
-  border-bottom: 1px solid rgba(0,0,0,0.04) !important;
-  padding: 20px 24px !important;
-}
-
-.el-dialog__body {
-  padding: 24px !important;
-  color: #64748B !important;
-}
-
-.el-dialog__footer {
-  border-top: 1px solid rgba(0,0,0,0.04) !important;
-  padding: 16px 24px !important;
-}
-
-.el-overlay {
-  background: rgba(0, 0, 0, 0.15) !important;
-  backdrop-filter: blur(2px);
-}
-
-/* ============================================================
-   10. BREADCRUMB
-   ============================================================ */
-.el-breadcrumb {
-  font-size: 13px !important;
-}
-
-.el-breadcrumb__inner {
-  color: #64748B !important;
-}
-
-.el-breadcrumb__inner:hover {
-  color: #0052FF !important;
-}
-
-.el-breadcrumb__item:last-child .el-breadcrumb__inner {
-  color: #1E293B !important;
-  font-weight: 500 !important;
-}
-
-.el-breadcrumb__separator {
-  color: #cbd5e1 !important;
-}
-
-/* ============================================================
-   11. ALERT
-   ============================================================ */
-.el-alert {
-  border-radius: 16px !important;
-  border: none !important;
-}
-
-.el-alert--success {
-  background: rgba(74, 222, 128, 0.1) !important;
-}
-
-.el-alert--warning {
-  background: rgba(255, 165, 0, 0.1) !important;
-}
-
-.el-alert--error {
-  background: rgba(255, 77, 141, 0.1) !important;
-}
-
-.el-alert--info {
-  background: rgba(0, 82, 255, 0.08) !important;
-}
-
-/* ============================================================
-   12. PROGRESS BAR
-   ============================================================ */
-.el-progress-bar__outer {
-  background: rgba(0,0,0,0.06) !important;
-  border-radius: 4px !important;
-  height: 6px !important;
-}
-
-.el-progress-bar__inner {
-  border-radius: 4px !important;
-  background: linear-gradient(90deg, #0052FF, #3b82f6) !important;
-}
-
-.el-progress-bar__innerText {
-  display: none !important;
-}
-
-/* ============================================================
-   13. SWITCH
-   ============================================================ */
-.el-switch__core {
-  background: rgba(0,0,0,0.1) !important;
-  border: none !important;
-  height: 24px !important;
-  width: 44px !important;
-}
-
-.el-switch.is-checked .el-switch__core {
-  background: #0052FF !important;
-}
-
-/* ============================================================
-   14. DIVIDER
-   ============================================================ */
-.el-divider {
-  border-top-color: rgba(0,0,0,0.06) !important;
-}
-
-/* ============================================================
-   15. TOOLTIP / POPOVER
-   ============================================================ */
-.el-popper {
-  background: rgba(255,255,255,0.9) !important;
-  backdrop-filter: blur(12px) !important;
-  border: 1px solid rgba(255,255,255,0.5) !important;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1) !important;
-}
-
-/* ============================================================
-   16. MODULE LAYOUT
-   ============================================================ */
-.module-header {
-  border-bottom: 1px solid rgba(0,0,0,0.04) !important;
-  margin-bottom: 24px !important;
-}
-
-.module-title {
-  color: #1E293B !important;
-  font-size: 22px !important;
-  font-weight: 700 !important;
-}
-
-/* ============================================================
-   17. COLLAPSE BUTTON
-   ============================================================ */
-.sidebar-collapse {
-  border-top: 1px solid rgba(255,255,255,0.06) !important;
-  padding: 14px !important;
-  color: rgba(255,255,255,0.3) !important;
-}
-
-.sidebar-collapse:hover {
-  color: #ffffff !important;
-}
-
-/* ============================================================
-   18. DESCRIPTIONS
-   ============================================================ */
-.el-descriptions {
-  color: #1E293B !important;
-}
-
-.el-descriptions__title {
-  color: #1E293B !important;
-}
-
-.el-descriptions__label {
-  color: #64748B !important;
-}
-
-.el-descriptions__content {
-  color: #1E293B !important;
+[data-theme="light"] {
+  /* 色板:
+     背景渐变:    #e8ebf5 → #d1d9f0
+     品牌色:      #0052FF
+     侧栏:        #121212 (深色)
+     卡片:        rgba(255,255,255,0.65) 毛玻璃
+     成功:        #4ADE80
+     警告:        #FFA500
+     危险:        #FF4D8D
+     文字主:      #1E293B
+     文字次:      #64748B
+     圆角:        20px (大圆角)
+     阴影:        0 8px 32px rgba(31,38,135,0.07)
+  */
+
+  /* ============================================================
+     1. GLOBAL RESET & BASE
+     ============================================================ */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #c0c4cc transparent;
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #c0c4cc; border-radius: 3px; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: linear-gradient(135deg, #e8ebf5 0%, #d1d9f0 100%);
+    color: #1E293B;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* ============================================================
+     2. LAYOUT OVERRIDE
+     ============================================================ */
+  .layout-container {
+    background: transparent !important;
+  }
+
+  /* Sidebar — 深色侧栏，右边大圆角 */
+  .sidebar {
+    background-color: #121212 !important;
+    border-radius: 0 24px 24px 0 !important;
+    border-right: none !important;
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15) !important;
+  }
+
+  .sidebar-header {
+    border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+    padding: 24px 16px !important;
+    justify-content: center !important;
+  }
+
+  .brand {
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    letter-spacing: 0.02em;
+  }
+
+  /* Topbar — 透明顶栏 */
+  .topbar {
+    background: rgba(255,255,255,0.4) !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255,255,255,0.5) !important;
+    height: 54px !important;
+  }
+
+  .main-content {
+    background: transparent !important;
+    padding: 24px !important;
+  }
+
+  /* ============================================================
+     3. EL-MENU — 深色侧栏菜单
+     ============================================================ */
+  .el-menu {
+    border-right: none !important;
+    background: transparent !important;
+  }
+
+  .el-menu-item {
+    color: rgba(255,255,255,0.5) !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    height: 44px !important;
+    line-height: 44px !important;
+    margin: 2px 10px !important;
+    border-radius: 12px !important;
+    padding: 0 12px !important;
+    transition: all 0.2s ease !important;
+  }
+
+  .el-menu-item:hover {
+    background: rgba(255,255,255,0.06) !important;
+    color: rgba(255,255,255,0.8) !important;
+  }
+
+  .el-menu-item.is-active {
+    background: #0052FF !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 12px rgba(0, 82, 255, 0.3);
+  }
+
+  .el-menu-item .el-icon {
+    color: rgba(255,255,255,0.4) !important;
+    font-size: 18px !important;
+    margin-right: 10px !important;
+  }
+
+  .el-menu-item.is-active .el-icon {
+    color: #ffffff !important;
+  }
+
+  .el-sub-menu__title {
+    color: rgba(255,255,255,0.5) !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    height: 44px !important;
+    line-height: 44px !important;
+    margin: 2px 10px !important;
+    border-radius: 12px !important;
+    padding: 0 12px !important;
+    transition: all 0.2s ease !important;
+  }
+
+  .el-sub-menu__title:hover {
+    background: rgba(255,255,255,0.06) !important;
+    color: rgba(255,255,255,0.8) !important;
+  }
+
+  .el-sub-menu__title .el-icon {
+    color: rgba(255,255,255,0.4) !important;
+    font-size: 18px !important;
+    margin-right: 10px !important;
+  }
+
+  .el-sub-menu.is-active .el-sub-menu__title {
+    color: #ffffff !important;
+  }
+
+  .el-sub-menu.is-active .el-sub-menu__title .el-icon {
+    color: #ffffff !important;
+  }
+
+  .el-sub-menu .el-menu {
+    background: transparent !important;
+  }
+
+  .el-sub-menu .el-menu .el-menu-item {
+    padding-left: 46px !important;
+    font-size: 12.5px !important;
+    height: 36px !important;
+    line-height: 36px !important;
+    margin: 1px 10px !important;
+  }
+
+  .el-sub-menu .el-sub-menu .el-menu-item {
+    padding-left: 60px !important;
+    font-size: 12px !important;
+  }
+
+  /* ============================================================
+     4. CARD — 毛玻璃卡片（20px 大圆角）
+     ============================================================ */
+  .el-card {
+    background: rgba(255, 255, 255, 0.65) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.4) !important;
+    border-radius: 20px !important;
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07) !important;
+    transition: all 0.25s ease !important;
+  }
+
+  .el-card:hover {
+    box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.12) !important;
+    background: rgba(255, 255, 255, 0.75) !important;
+  }
+
+  .el-card__body {
+    padding: 20px !important;
+    color: #1E293B;
+  }
+
+  /* ============================================================
+     5. BUTTON — 圆润按钮
+     ============================================================ */
+  .el-button {
+    border-radius: 12px !important;
+    font-weight: 600 !important;
+    font-size: 13px !important;
+    transition: all 0.2s ease !important;
+    border: 1px solid transparent !important;
+  }
+
+  .el-button--primary {
+    background-color: #0052FF !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 14px rgba(0, 82, 255, 0.25) !important;
+  }
+
+  .el-button--primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 82, 255, 0.35) !important;
+  }
+
+  .el-button--default {
+    background: rgba(255,255,255,0.5) !important;
+    color: #1E293B !important;
+    border: 1px solid rgba(0,0,0,0.06) !important;
+  }
+
+  .el-button--default:hover {
+    background: rgba(255,255,255,0.8) !important;
+  }
+
+  .el-button--danger {
+    background-color: #FF4D8D !important;
+    color: #fff !important;
+  }
+
+  .el-button--success {
+    background-color: #4ADE80 !important;
+    color: #fff !important;
+  }
+
+  .el-button--warning {
+    background-color: #FFA500 !important;
+    color: #fff !important;
+  }
+
+  .el-button--text {
+    color: #0052FF !important;
+  }
+
+  .el-button.is-disabled {
+    opacity: 0.4 !important;
+  }
+
+  /* ============================================================
+     6. TABLE — 浅色数据表
+     ============================================================ */
+  .el-table {
+    background: rgba(255,255,255,0.4) !important;
+    color: #1E293B !important;
+    border: 1px solid rgba(255,255,255,0.6) !important;
+    border-radius: 16px !important;
+    overflow: hidden !important;
+  }
+
+  .el-table::before {
+    display: none !important;
+  }
+
+  .el-table th.el-table__cell {
+    background: rgba(255,255,255,0.5) !important;
+    color: #64748B !important;
+    font-weight: 600 !important;
+    font-size: 12px !important;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 12px 16px !important;
+    border-bottom: 1px solid rgba(0,0,0,0.04) !important;
+  }
+
+  .el-table td.el-table__cell {
+    background: transparent !important;
+    color: #1E293B !important;
+    padding: 10px 16px !important;
+    border-bottom: 1px solid rgba(0,0,0,0.03) !important;
+  }
+
+  .el-table tr:hover > td.el-table__cell {
+    background: rgba(0, 82, 255, 0.03) !important;
+  }
+
+  .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
+    background: rgba(255,255,255,0.3) !important;
+  }
+
+  .el-table__empty-text {
+    color: #94a3b8 !important;
+  }
+
+  /* ============================================================
+     7. FORM — 表单元素
+     ============================================================ */
+  .el-input__wrapper {
+    background: rgba(255,255,255,0.6) !important;
+    border: 1px solid rgba(0,0,0,0.06) !important;
+    border-radius: 12px !important;
+    box-shadow: none !important;
+  }
+
+  .el-input__wrapper.is-focus {
+    border-color: #0052FF !important;
+    box-shadow: 0 0 0 3px rgba(0, 82, 255, 0.1) !important;
+  }
+
+  .el-input__inner {
+    color: #1E293B !important;
+  }
+
+  .el-input__inner::placeholder {
+    color: #94a3b8 !important;
+  }
+
+  /* ============================================================
+     8. TAG — 胶囊标签
+     ============================================================ */
+  .el-tag {
+    border-radius: 50px !important;
+    font-weight: 600 !important;
+    font-size: 11px !important;
+    padding: 0 12px !important;
+    height: 24px !important;
+    line-height: 24px !important;
+    border: none !important;
+    text-transform: uppercase;
+  }
+
+  .el-tag--success {
+    background: rgba(74, 222, 128, 0.15) !important;
+    color: #16a34a !important;
+  }
+
+  .el-tag--danger {
+    background: rgba(255, 77, 141, 0.15) !important;
+    color: #e11d6a !important;
+  }
+
+  .el-tag--warning {
+    background: rgba(255, 165, 0, 0.15) !important;
+    color: #d97706 !important;
+  }
+
+  .el-tag--info {
+    background: rgba(100, 116, 139, 0.12) !important;
+    color: #64748B !important;
+  }
+
+  /* ============================================================
+     9. DIALOG / MODAL
+     ============================================================ */
+  .el-dialog {
+    background: rgba(255,255,255,0.85) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border: 1px solid rgba(255,255,255,0.5) !important;
+    border-radius: 24px !important;
+    box-shadow: 0 24px 80px rgba(31, 38, 135, 0.15) !important;
+  }
+
+  .el-dialog__title {
+    color: #1E293B !important;
+    font-weight: 600 !important;
+  }
+
+  .el-dialog__header {
+    border-bottom: 1px solid rgba(0,0,0,0.04) !important;
+    padding: 20px 24px !important;
+  }
+
+  .el-dialog__body {
+    padding: 24px !important;
+    color: #64748B !important;
+  }
+
+  .el-dialog__footer {
+    border-top: 1px solid rgba(0,0,0,0.04) !important;
+    padding: 16px 24px !important;
+  }
+
+  .el-overlay {
+    background: rgba(0, 0, 0, 0.15) !important;
+    backdrop-filter: blur(2px);
+  }
+
+  /* ============================================================
+     10. BREADCRUMB
+     ============================================================ */
+  .el-breadcrumb {
+    font-size: 13px !important;
+  }
+
+  .el-breadcrumb__inner {
+    color: #64748B !important;
+  }
+
+  .el-breadcrumb__inner:hover {
+    color: #0052FF !important;
+  }
+
+  .el-breadcrumb__item:last-child .el-breadcrumb__inner {
+    color: #1E293B !important;
+    font-weight: 500 !important;
+  }
+
+  .el-breadcrumb__separator {
+    color: #cbd5e1 !important;
+  }
+
+  /* ============================================================
+     11. ALERT
+     ============================================================ */
+  .el-alert {
+    border-radius: 16px !important;
+    border: none !important;
+  }
+
+  .el-alert--success {
+    background: rgba(74, 222, 128, 0.1) !important;
+  }
+
+  .el-alert--warning {
+    background: rgba(255, 165, 0, 0.1) !important;
+  }
+
+  .el-alert--error {
+    background: rgba(255, 77, 141, 0.1) !important;
+  }
+
+  .el-alert--info {
+    background: rgba(0, 82, 255, 0.08) !important;
+  }
+
+  /* ============================================================
+     12. PROGRESS BAR
+     ============================================================ */
+  .el-progress-bar__outer {
+    background: rgba(0,0,0,0.06) !important;
+    border-radius: 4px !important;
+    height: 6px !important;
+  }
+
+  .el-progress-bar__inner {
+    border-radius: 4px !important;
+    background: linear-gradient(90deg, #0052FF, #3b82f6) !important;
+  }
+
+  .el-progress-bar__innerText {
+    display: none !important;
+  }
+
+  /* ============================================================
+     13. SWITCH
+     ============================================================ */
+  .el-switch__core {
+    background: rgba(0,0,0,0.1) !important;
+    border: none !important;
+    height: 24px !important;
+    width: 44px !important;
+  }
+
+  .el-switch.is-checked .el-switch__core {
+    background: #0052FF !important;
+  }
+
+  /* ============================================================
+     14. DIVIDER
+     ============================================================ */
+  .el-divider {
+    border-top-color: rgba(0,0,0,0.06) !important;
+  }
+
+  /* ============================================================
+     15. TOOLTIP / POPOVER
+     ============================================================ */
+  .el-popper {
+    background: rgba(255,255,255,0.9) !important;
+    backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(255,255,255,0.5) !important;
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1) !important;
+  }
+
+  /* ============================================================
+     16. MODULE LAYOUT
+     ============================================================ */
+  .module-header {
+    border-bottom: 1px solid rgba(0,0,0,0.04) !important;
+    margin-bottom: 24px !important;
+  }
+
+  .module-title {
+    color: #1E293B !important;
+    font-size: 22px !important;
+    font-weight: 700 !important;
+  }
+
+  /* ============================================================
+     17. COLLAPSE BUTTON
+     ============================================================ */
+  .sidebar-collapse {
+    border-top: 1px solid rgba(255,255,255,0.06) !important;
+    padding: 14px !important;
+    color: rgba(255,255,255,0.3) !important;
+  }
+
+  .sidebar-collapse:hover {
+    color: #ffffff !important;
+  }
+
+  /* ============================================================
+     18. DESCRIPTIONS
+     ============================================================ */
+  .el-descriptions {
+    color: #1E293B !important;
+  }
+
+  .el-descriptions__title {
+    color: #1E293B !important;
+  }
+
+  .el-descriptions__label {
+    color: #64748B !important;
+  }
+
+  .el-descriptions__content {
+    color: #1E293B !important;
+  }
 }

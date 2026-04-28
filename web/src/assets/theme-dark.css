@@ -1,0 +1,225 @@
+/* ============================================================
+   UbuntuRouter — Dark Theme (default)
+   Extracted from App.vue <style>, wrapped in [data-theme="dark"]
+   ============================================================ */
+[data-theme="dark"] {
+  /* ─── 全局样式 ───────────────────────────────────────────── */
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
+    background-color: #0a0a0a;
+    color: #e0e0e0;
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 3px;
+  }
+
+  /* ─── 表格响应式工具类 ───────────────────────────────────── */
+  @media (max-width: 767px) {
+    .hide-mobile {
+      display: none !important;
+    }
+  }
+  @media (max-width: 480px) {
+    .hide-xs {
+      display: none !important;
+    }
+  }
+
+  /* ─── Element Plus 暗色主题表格适应 ─────────────────────── */
+  .el-table--striped .el-table__body tr.el-table__row--striped td {
+    background: rgba(255,255,255,0.02);
+  }
+  .el-table--striped .el-table__body tr.el-table__row--striped:hover td {
+    background: rgba(255,255,255,0.05);
+  }
+  .el-table th.el-table__cell {
+    background-color: #1a1a1a !important;
+    color: #888 !important;
+  }
+  .el-table td.el-table__cell {
+    background-color: #141414 !important;
+    color: #ccc !important;
+  }
+  .el-table--enable-row-hover .el-table__body tr:hover > td {
+    background-color: #1e1e1e !important;
+  }
+  .el-table__body tr.current-row > td {
+    background-color: #1a2633 !important;
+  }
+
+  /* ─── 卡片间距移动端适配 ─────────────────────────────────── */
+  @media (max-width: 767px) {
+    .el-card {
+      --el-card-padding: 12px;
+    }
+    .el-dialog {
+      --el-dialog-padding-primary: 16px;
+      width: 92% !important;
+      max-width: 92% !important;
+    }
+    .el-message-box {
+      width: 85% !important;
+      max-width: 85% !important;
+    }
+  }
+
+  /* ─── 工具类 ────────────────────────────────────────────── */
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  @media (max-width: 767px) {
+    .toolbar { gap: 6px; margin-bottom: 12px; }
+    .toolbar .el-button { font-size: 12px; }
+  }
+  h2 {
+    font-size: 20px;
+    margin: 0 0 16px 0;
+    color: #e0e0e0;
+  }
+  @media (max-width: 767px) {
+    h2 { font-size: 17px; margin-bottom: 12px; }
+  }
+  .text-muted { color: #666; }
+
+  /* ─── Layout dark overrides ─────────────────────────────── */
+  .layout-container {
+    height: 100vh;
+  }
+  .mobile-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+  }
+  .sidebar {
+    background: #141414;
+    border-right: 1px solid #222;
+    display: flex;
+    flex-direction: column;
+    transition: width 0.3s, transform 0.3s;
+    overflow: hidden;
+    z-index: 1000;
+  }
+  @media (max-width: 767px) {
+    .sidebar.mobile-hidden {
+      transform: translateX(-100%);
+      position: fixed;
+      height: 100vh;
+      z-index: 1000;
+    }
+    .sidebar.mobile-show {
+      transform: translateX(0);
+      position: fixed;
+      height: 100vh;
+      z-index: 1000;
+      box-shadow: 4px 0 12px rgba(0, 0, 0, 0.4);
+    }
+  }
+  .sidebar-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 20px 16px;
+    border-bottom: 1px solid #222;
+  }
+  .brand {
+    font-size: 18px;
+    font-weight: 600;
+    color: #e0e0e0;
+    white-space: nowrap;
+  }
+  .sidebar-collapse {
+    margin-top: auto;
+    padding: 16px;
+    text-align: center;
+    cursor: pointer;
+    color: #666;
+    border-top: 1px solid #222;
+  }
+  .sidebar-collapse:hover {
+    color: #409EFF;
+  }
+  .topbar {
+    background: #141414;
+    border-bottom: 1px solid #222;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    height: 56px;
+  }
+  @media (min-width: 768px) {
+    .topbar { padding: 0 24px; }
+  }
+  .topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  @media (min-width: 768px) {
+    .topbar-left { gap: 12px; }
+  }
+  .hamburger-btn {
+    color: #999;
+    padding: 4px;
+  }
+  .topbar-title {
+    font-size: 14px;
+    color: #ccc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  @media (min-width: 768px) {
+    .topbar-title { font-size: 16px; }
+  }
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  @media (min-width: 768px) {
+    .topbar-right { gap: 16px; }
+  }
+  .user-name {
+    color: #999;
+    font-size: 13px;
+    display: none;
+  }
+  @media (min-width: 768px) {
+    .user-name { display: inline; font-size: 14px; }
+  }
+  .logout-text {
+    display: none;
+  }
+  @media (min-width: 480px) {
+    .logout-text { display: inline; }
+  }
+  .main-content {
+    background: #0a0a0a;
+    padding: 16px;
+    overflow-y: auto;
+    padding-bottom: 80px;
+  }
+  @media (min-width: 768px) {
+    .main-content { padding: 24px; }
+  }
+  .el-menu {
+    border-right: none;
+  }
+  .el-sub-menu .el-sub-menu .el-menu-item {
+    padding-left: 56px !important;
+  }
+}

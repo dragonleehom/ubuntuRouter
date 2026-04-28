@@ -17,7 +17,7 @@
         :default-active="route.path"
         :collapse="!isMobile && isCollapse"
         :collapse-transition="false"
-        background-color="#141414"
+        background-color="var(--el-menu-bg, #141414)"
         text-color="#999"
         active-text-color="#409EFF"
         router
@@ -171,6 +171,11 @@
           <span class="topbar-title">{{ pageTitle }}</span>
         </div>
         <div class="topbar-right">
+          <el-tooltip content="切换主题" placement="bottom">
+            <el-button text @click="themeStore.toggleTheme()" class="theme-toggle-btn">
+              <el-icon><Sunny v-if="themeStore.theme === 'dark'" /><Moon v-else /></el-icon>
+            </el-button>
+          </el-tooltip>
           <span class="user-name">{{ authStore.user?.username || '用户' }}</span>
           <el-button text @click="authStore.logout">
             <el-icon><SwitchButton /></el-icon>
@@ -192,14 +197,17 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores'
+import { useThemeStore } from '@/stores/theme'
 import PendingChangesBar from '@/components/PendingChangesBar.vue'
 import {
   Monitor, DataBoard, Connection, Lock, Setting,
   Fold, Expand, SwitchButton, SetUp, Goods, Operation,
+  Sunny, Moon,
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const authStore = useAuthStore()
+const themeStore = useThemeStore()
 const isCollapse = ref(false)
 const connected = ref(true)
 const mobileMenuOpen = ref(false)
@@ -369,5 +377,12 @@ onUnmounted(() => {
 /* 子菜单样式：缩进三级菜单 */
 .el-sub-menu .el-sub-menu .el-menu-item {
   padding-left: 56px !important;
+}
+.theme-toggle-btn {
+  color: #999;
+  font-size: 18px;
+}
+.theme-toggle-btn:hover {
+  color: #409EFF;
 }
 </style>
