@@ -29,6 +29,7 @@ from .routes import tls_manager as tls_manager_routes
 from .routes import factory_reset as factory_reset_routes
 from .routes import ratings as ratings_routes
 from .routes import network_enhance as network_enhance_routes
+from .routes import voice as voice_routes
 from .ws import dashboard as ws_dashboard
 from .auth import jwt as jwt_auth
 from .tls import init_https
@@ -88,6 +89,7 @@ def create_app() -> FastAPI:
     app.include_router(factory_reset_routes.router, prefix="/api/v1/system", tags=["System"])
     app.include_router(ratings_routes.router, prefix="/api/v1/ratings", tags=["Ratings"])
     app.include_router(network_enhance_routes.router, prefix="/api/v1/system", tags=["NetworkEnhance"])
+    app.include_router(voice_routes.router, prefix="/api/v1/voice", tags=["Voice"])
 
     # WebSocket
     app.add_api_websocket_route("/api/v1/ws/dashboard", ws_dashboard.websocket_endpoint)
