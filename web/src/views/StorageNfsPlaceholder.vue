@@ -1,14 +1,7 @@
 <template>
-  <div class="placeholder-page">
-    <el-empty description="NFS — 开发中" />
-  </div>
+  <NfsManager />
 </template>
+
 <script setup>
-import { onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-const route = useRoute()
-onMounted(() => { document.title = route.meta?.title || 'NFS' })
+import NfsManager from '@/views/nfs/NfsManager.vue'
 </script>
-<style scoped>
-.placeholder-page { display: flex; justify-content: center; align-items: center; height: 60vh; }
-</style>
