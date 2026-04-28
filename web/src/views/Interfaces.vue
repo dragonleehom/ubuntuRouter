@@ -350,6 +350,24 @@
             {{ editForm.protocol === 'pppoe' ? 'PPPoE 通常为 1492' : '以太网默认 1500' }}
           </span>
         </el-form-item>
+
+        <!-- 接口高级参数 -->
+        <el-form-item label="路由跃点数(Metric)">
+          <el-input-number v-model="editForm.metric" :min="0" :max="9999" size="small" />
+        </el-form-item>
+        <el-form-item label="DHCP 标识">
+          <el-select v-model="editForm.dhcp_identifier" size="small" style="width:160px">
+            <el-option label="MAC 地址" value="mac" />
+            <el-option label="DUID" value="duid" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="IPv6 RA 接受">
+          <el-select v-model="editForm.accept_ra" size="small" style="width:160px">
+            <el-option label="启用" value="1" />
+            <el-option label="禁用" value="0" />
+            <el-option label="仅路由前缀" value="2" />
+          </el-select>
+        </el-form-item>
       </el-form>
 
       <template #footer>
