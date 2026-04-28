@@ -83,6 +83,12 @@ export default [
         meta: { title: 'UPnP' },
         component: () => import('@/views/NetworkUpnpPlaceholder.vue'),
       },
+      {
+        path: 'bridge',
+        name: 'NetworkBridge',
+        meta: { title: '桥接' },
+        component: () => import('@/views/NetworkBridgePlaceholder.vue'),
+      },
     ],
   },
 ]
