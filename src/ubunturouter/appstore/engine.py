@@ -31,7 +31,7 @@ REPO_FORMATS = {
 
 @dataclass
 class AppManifest:
-    """应用 Manifest (app.yaml)"""
+    """应用 Manifest (app.yaml / data.yml) — 1Panel 标准兼容"""
     id: str                        # 应用唯一 ID，如 "adguard-home"
     name: str                      # 显示名称
     version: str                   # 当前版本
@@ -60,10 +60,56 @@ class AppManifest:
     installed: bool = False        # 是否已安装
     installed_version: str = ""    # 已安装版本
 
+    # ── 1Panel 标准增强 ──────────────────────────────────
+
+    # 版本管理: 所有可用版本列表
+    versions: List[str] = field(default_factory=list)
+    cross_version_update: bool = False  # 是否支持跨版本升级
+
+    # 安装约束
+    architectures: List[str] = field(default_factory=list)  # ["amd64", "arm64"]
+    gpu_support: bool = False
+    memory_required: int = 0      # 最低内存要求 (MB)
+
+    # 子表单联动
+    child_fields: List[Dict] = field(default_factory=list)
+
+    # 升级脚本 (1Panel 兼容)
+    upgrade_script: str = ""
+
     @property
     def format(self) -> str:
         """推断来源格式"""
         return ""
+
+    def to_dict(self) -> Dict:
+        """序列化为字典 — 1Panel 标准格式"""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "version": self.version,
+            "versions": self.versions,
+            "description": self.description,
+            "category": self.category,
+            "author": self.author,
+            "icon": self.icon,
+            "homepage": self.homepage,
+            "tags": self.tags,
+            "cross_version_update": self.cross_version_update,
+            "architectures": self.architectures,
+            "gpu_support": self.gpu_support,
+            "memory_required": self.memory_required,
+            "env_vars": self.env_vars,
+            "ports": self.ports,
+            "volumes": self.volumes,
+            "child_fields": self.child_fields,
+            "requires": self.requires,
+            "pre_install": self.pre_install,
+            "post_install": self.post_install,
+            "upgrade_script": self.upgrade_script,
+            "installed": self.installed,
+            "installed_version": self.installed_version,
+        }
 
 
 def parse_manifest(manifest_path: Path) -> Optional[AppManifest]:
@@ -295,6 +341,47 @@ _CATEGORY_INFERENCE_RULES = [
 _CATEGORY_CN_MAP = {v: k for k, v in _CATEGORY_I18N.items()}
 
 
+# ── 辅助解析函数 ──────────────────────────────────────────
+
+def _parse_list_field(obj: dict, key: str, default: list = None) -> list:
+    """从 dict 安全解析列表字段"""
+    if default is None:
+        default = []
+    if not isinstance(obj, dict):
+        return default
+    val = obj.get(key, default)
+    if isinstance(val, list):
+        return val
+    if isinstance(val, str):
+        return [v.strip() for v in val.split(",") if v.strip()]
+    return default
+
+
+def _parse_bool(obj: dict, key: str, default: bool = False) -> bool:
+    """从 dict 安全解析布尔字段"""
+    if not isinstance(obj, dict):
+        return default
+    val = obj.get(key, default)
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, str):
+        return val.lower() in ("true", "1", "yes")
+    if isinstance(val, (int, float)):
+        return val != 0
+    return default
+
+
+def _parse_int(obj: dict, key: str, default: int = 0) -> int:
+    """从 dict 安全解析整数字段"""
+    if not isinstance(obj, dict):
+        return default
+    val = obj.get(key, default)
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return default
+
+
 def _infer_category(app_name: str, description: str = "", tags: list = None) -> str:
     """根据应用名称、描述和标签推断分类"""
     if tags is None:
@@ -365,24 +452,106 @@ def parse_onepanel_manifest(manifest_path: Path) -> Optional[AppManifest]:
     compose_path = manifest_path.parent / "docker-compose.yml"
     ports = _extract_ports_from_compose(compose_path)
 
-    # 环境变量
+    # ── 1Panel 增强: 7种参数类型 + 验证规则 + 随机密码 ──
     env_vars = []
     if isinstance(additional_props, dict):
         for field in additional_props.get("formFields", []):
             if isinstance(field, dict):
                 field_type = field.get("type", "input")
+
+                # 7种参数类型映射（1Panel 标准）
+                type_map = {
+                    "input": "text",
+                    "text": "text",
+                    "password": "password",
+                    "number": "number",
+                    "checkbox": "boolean",
+                    "switch": "boolean",
+                    "select": "select",
+                    "radio": "select",
+                    "file": "service",
+                    "array": "apps",
+                }
+
+                # 验证规则
+                validations = field.get("validations", field.get("rule", ""))
+                validation_rules = []
+                if isinstance(validations, str):
+                    # 支持 paramPort / paramCommon 等
+                    if "port" in validations.lower():
+                        validation_rules.append({
+                            "type": "paramPort",
+                            "rule": validations,
+                        })
+                    elif "common" in validations.lower():
+                        validation_rules.append({
+                            "type": "paramCommon",
+                            "rule": validations,
+                        })
+                elif isinstance(validations, list):
+                    for v in validations:
+                        if isinstance(v, str):
+                            validation_rules.append({"rule": v})
+                        elif isinstance(v, dict):
+                            validation_rules.append(v)
+
+                # 随机密码
+                default_val = field.get("default", "")
+                random_val = field.get("random", False)
+                if random_val and not default_val:
+                    import uuid
+                    default_val = uuid.uuid4().hex[:16]
+
                 env_vars.append({
                     "name": field.get("envKey", field.get("key", "")),
                     "label": field.get("labelZh", field.get("label", "")),
                     "description": field.get("placeholder", field.get("description", "")),
-                    "default": field.get("default", ""),
+                    "default": default_val,
                     "required": field.get("required", False),
-                    "type": {
-                        "password": "password", "number": "number",
-                        "checkbox": "boolean", "switch": "boolean", "select": "select",
-                    }.get(field_type, "string"),
+                    "type": type_map.get(field_type, "text"),
                     "options": field.get("options", field.get("children", [])),
+                    "validations": validation_rules,
+                    "random": random_val,
                 })
+
+    # ── 1Panel 增强: 版本管理（多版本目录）───────────────
+    versions = []
+    parent_dir = manifest_path.parent
+    grandparent_dir = manifest_path.parent.parent
+    # 检查是否有多个版本目录
+    if grandparent_dir.exists() and grandparent_dir.name != "installed":
+        for d in sorted(grandparent_dir.iterdir()):
+            if d.is_dir() and not d.name.startswith("."):
+                if (d / "data.yml").exists() or (d / "docker-compose.yml").exists():
+                    versions.append(d.name)
+    if not versions and parent_dir.name:
+        versions.append(version)
+
+    # 安装约束
+    architectures = _parse_list_field(additional_props, "architectures", data.get("architectures", []))
+    gpu_support = _parse_bool(additional_props, "gpuSupport", data.get("gpu_support", False))
+    memory_required = _parse_int(additional_props, "memoryRequired", data.get("memory_required", 0))
+
+    # 子表单联动（child 字段）
+    child_fields = []
+    if isinstance(additional_props, dict):
+        raw_fields = additional_props.get("formFields", [])
+    else:
+        raw_fields = data.get("formFields", [])
+    for field in raw_fields:
+        if isinstance(field, dict) and field.get("type") in ("service", "apps", "select"):
+            children = field.get("children", field.get("options", []))
+            if children and isinstance(children, list):
+                child_fields.append({
+                    "parent_key": field.get("envKey", field.get("key", "")),
+                    "parent_type": field.get("type", ""),
+                    "children": children,
+                })
+
+    # 升级脚本
+    upgrade_script = data.get("upgrade", data.get("upgrade_script", ""))
+    if isinstance(upgrade_script, list):
+        upgrade_script = "\n".join(upgrade_script)
 
     volumes = _extract_volumes_from_compose(compose_path)
 
@@ -390,16 +559,25 @@ def parse_onepanel_manifest(manifest_path: Path) -> Optional[AppManifest]:
         id=app_id,
         name=name,
         version=version or "0.0.0",
+        versions=versions,
         description=description,
         category=category,
         author=author,
         icon=icon,
         tags=tags,
         homepage=homepage,
+        cross_version_update=bool(data.get("crossVersionUpdate", data.get("cross_version_update", False))),
+        architectures=architectures,
+        gpu_support=gpu_support,
+        memory_required=memory_required,
         env_vars=env_vars,
         ports=ports,
         volumes=volumes,
+        child_fields=child_fields,
         compose_file="docker-compose.yml",
+        pre_install=data.get("preInstall", data.get("pre_install", "")),
+        post_install=data.get("postInstall", data.get("post_install", "")),
+        upgrade_script=upgrade_script,
     )
 
 
