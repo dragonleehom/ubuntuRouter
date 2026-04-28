@@ -34,7 +34,7 @@
           </el-input>
         </el-form-item>
         <el-form-item label="接口">
-          <el-select v-model="interface" style="width:200px">
+          <el-select v-model="selectedInterface" style="width:200px">
             <el-option v-for="iface in interfaces" :key="iface" :label="iface" :value="iface" />
           </el-select>
         </el-form-item>
@@ -55,7 +55,7 @@ const enabled = ref(false)
 const algorithm = ref('cake')
 const uploadSpeed = ref(100)
 const downloadSpeed = ref(500)
-const interface = ref('eth0')
+const selectedInterface = ref('eth0')
 const interfaces = ref(['eth0', 'eth1', 'wan'])
 const saving = ref(false)
 
@@ -67,7 +67,7 @@ async function fetchStatus() {
       algorithm.value = res.data.algorithm || 'cake'
       uploadSpeed.value = res.data.upload_speed || 100
       downloadSpeed.value = res.data.download_speed || 500
-      interface.value = res.data.interface || 'eth0'
+      selectedInterface.value = res.data.interface || 'eth0'
     }
   } catch { /* ignore */ }
 }
@@ -80,7 +80,7 @@ async function saveConfig() {
       algorithm: algorithm.value,
       upload_speed: uploadSpeed.value,
       download_speed: downloadSpeed.value,
-      interface: interface.value,
+      interface: selectedInterface.value,
     })
     ElMessage.success('QoS 配置已保存')
   } catch (e) {
